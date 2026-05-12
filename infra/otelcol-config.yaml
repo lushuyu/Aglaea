@@ -1,0 +1,78 @@
+# Aglaea v0.1 — OpenTelemetry Collector configuration
+# Image: otel/opentelemetry-collector-contrib:0.111.0
+#
+# Pipeline: OTLP/HTTP receiver → PII scrub processors → VictoriaMetrics exporter
+# Logs and traces are NOT exported in v0.1 (metrics only).
+#
+# AC3.7, AC5.6: The OTLP/HTTP port (4318) is docker-internal only.
+# Bearer auth is enforced by nginx BEFORE traffic reaches this collector.
+# The OTEL_SHARED_TOKEN env var is available here for future processor use
+# but the actual gate lives in nginx.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: "0.0.0.0:4318"
+        # NOTE: This port is NOT exposed to the host (see docker-compose.yml).
+        # nginx on the host reverse-proxies to otelcol:4318 with bearer-token gating.
+
+processors:
+  # Drop PII fields from span/metric attributes before they reach VictoriaMetrics.
+  # AC §8.1: user.email and user.account_uuid must never be stored.
+  attributes/drop_pii:
+    actions:
+      - key: user.email
+        action: delete
+      - key: user.account_uuid
+        action: delete
+
+  # Drop account_uuid from resource attributes (some SDKs attach it there).
+  transform/drop_resource_pii:
+    metric_statements:
+      - context: resource
+        statements:
+          - delete_key(attributes, "user.account_uuid")
+          - delete_key(attributes, "user.email")
+
+  # Batch metrics for efficient remote_write
+  batch:
+    send_batch_size: 512
+    timeout: 5s
+
+exporters:
+  # Metrics → VictoriaMetrics via Prometheus remote_write
+  prometheusremotewrite:
+    endpoint: "http://victoriametrics:8428/api/v1/write"
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 120s
+
+  # Debug logging (disabled in prod — set to "none" or remove)
+  # debug:
+  #   verbosity: detailed
+
+service:
+  pipelines:
+    # Metrics pipeline: receive → scrub PII → export to VictoriaMetrics
+    metrics:
+      receivers:  [otlp]
+      processors: [attributes/drop_pii, transform/drop_resource_pii, batch]
+      exporters:  [prometheusremotewrite]
+
+    # Traces pipeline: receive only — no exporter (logs/traces NOT exported in v0.1)
+    # Uncomment to add trace export in a future version:
+    # traces:
+    #   receivers:  [otlp]
+    #   processors: [attributes/drop_pii]
+    #   exporters:  []
+
+    # Logs pipeline: receive only — no exporter in v0.1
+    # logs:
+    #   receivers:  [otlp]
+    #   processors: [attributes/drop_pii]
+    #   exporters:  []

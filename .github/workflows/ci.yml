@@ -1,0 +1,242 @@
+# Aglaea v0.1 — CI (Phase 0.11)
+# Three jobs: backend, frontend, cross-cutting.
+# Mirrors the local pre-commit hooks for full coverage.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: Backend ──────────────────────────────────────────────────────────
+  backend:
+    name: Backend (ruff + mypy + pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: timescale/timescaledb:2.17.0-pg16
+        env:
+          POSTGRES_USER: aglaea
+          POSTGRES_DB: aglaea
+          POSTGRES_PASSWORD: ci_test_password_not_real
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aglaea -d aglaea"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://aglaea:ci_test_password_not_real@localhost:5432/aglaea
+      DEEPSEEK_API_KEY: placeholder
+      GITHUB_OAUTH_CLIENT_ID: placeholder
+      GITHUB_OAUTH_CLIENT_SECRET: placeholder
+      SESSION_SECRET: placeholder_session_secret_32chars_ok
+      BOOTSTRAP_GITHUB_LOGIN: lushuyu
+      HEALTHCHECKS_SELFPING_URL: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Cache uv venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: backend-uv-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: backend-uv-
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Ruff lint
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        working-directory: backend
+        run: uv run ruff format --check .
+
+      - name: mypy
+        working-directory: backend
+        run: uv run mypy aglaea/ --ignore-missing-imports
+
+      - name: Run migrations (against CI Postgres)
+        working-directory: backend
+        run: uv run alembic upgrade head
+
+      - name: pytest
+        working-directory: backend
+        run: uv run pytest -v --tb=short --cov=aglaea --cov-report=term-missing
+
+      # Custom backend lints
+      - name: argon2 sync-wrap guard
+        working-directory: backend
+        run: |
+          result=$(grep -rn "\.verify(" aglaea/ | grep -v "asyncio.to_thread" | grep -v "#" | grep -v "test_" || true)
+          if [ -n "$result" ]; then
+            echo "ERROR: argon2 .verify() called without asyncio.to_thread:"
+            echo "$result"
+            exit 1
+          fi
+          echo "argon2 sync-wrap check passed."
+
+      - name: Visibility drift lint
+        run: python scripts/lint_visibility.py
+
+  # ── Job 2: Frontend ─────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend (tsc + lint + test + build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci
+
+      - name: TypeScript type check
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: ESLint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Tests (Vitest)
+        working-directory: frontend
+        run: npm run test -- --run
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+      # CSS token guard: no hex/px literals in *.module.css (AC2.4)
+      - name: CSS literal guard
+        run: |
+          result=$(find frontend -name "*.module.css" \
+            -exec grep -En '#[0-9a-fA-F]{3,6}\b|[0-9]+px\b' {} + 2>/dev/null || true)
+          if [ -n "$result" ]; then
+            echo "ERROR: hex/px literals found in *.module.css (use var(--*) tokens):"
+            echo "$result"
+            exit 1
+          fi
+          echo "CSS literal guard passed."
+
+      # TanStack Query must NOT appear in public bundle (AC2.6)
+      - name: TanStack Query bundle isolation check
+        run: |
+          result=$(grep -r "QueryClientProvider\|@tanstack/react-query" \
+            frontend/app/\(public\)/ 2>/dev/null || true)
+          if [ -n "$result" ]; then
+            echo "ERROR: TanStack Query found in public routes:"
+            echo "$result"
+            exit 1
+          fi
+          echo "TanStack Query isolation check passed."
+
+  # ── Job 3: Cross-cutting ────────────────────────────────────────────────────
+  cross-cutting:
+    name: Cross-cutting (visibility + openapi-regen + hardening)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Cache uv venv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: backend-uv-${{ hashFiles('backend/uv.lock') }}
+          restore-keys: backend-uv-
+
+      - name: Install backend deps
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: npm ci (for openapi-typescript)
+        working-directory: frontend
+        run: npm ci
+
+      # Phase 0.9 — visibility drift
+      - name: Visibility drift lint
+        run: python scripts/lint_visibility.py
+
+      # Phase 0.10 — OpenAPI type regen drift check
+      # Regenerates frontend/types/api.ts and fails if it differs from committed version.
+      - name: OpenAPI type regen check
+        env:
+          DATABASE_URL: postgresql+asyncpg://aglaea:placeholder@localhost:5432/aglaea
+          DEEPSEEK_API_KEY: placeholder
+          GITHUB_OAUTH_CLIENT_ID: placeholder
+          GITHUB_OAUTH_CLIENT_SECRET: placeholder
+          SESSION_SECRET: placeholder_session_secret_32chars_ok
+          BOOTSTRAP_GITHUB_LOGIN: lushuyu
+          HEALTHCHECKS_SELFPING_URL: ""
+        run: |
+          bash scripts/regen-api-types.sh
+          git diff --exit-code frontend/types/api.ts || {
+            echo "ERROR: frontend/types/api.ts is stale."
+            echo "Run: bash scripts/regen-api-types.sh"
+            echo "Then commit the regenerated file in the same PR."
+            exit 1
+          }
+
+      # Phase 9.1 — hardening checks (subset safe to run in CI without a live deploy)
+      - name: Hardening checks (CI subset)
+        run: |
+          # Run check_hardening.sh in CI mode — live-deploy checks (AC5.4, AC5.6, AC5.8)
+          # will SKIP gracefully; static checks (AC5.1-5.3, AC5.5) must PASS.
+          # We create a synthetic .env for CI to exercise the static checks.
+          cp .env.example .env
+          # Fill with CI-safe values that meet the strength requirements
+          printf 'POSTGRES_PASSWORD=%s\n' "$(openssl rand -base64 32)" >> .env
+          printf 'SESSION_SECRET=%s\n' "$(openssl rand -hex 32)" >> .env
+          printf 'OTEL_SHARED_TOKEN=%s\n' "$(openssl rand -hex 32)" >> .env
+          printf 'DEEPSEEK_API_KEY=placeholder\n' >> .env
+          printf 'GITHUB_OAUTH_CLIENT_ID=placeholder\n' >> .env
+          printf 'GITHUB_OAUTH_CLIENT_SECRET=placeholder\n' >> .env
+          printf 'BOOTSTRAP_GITHUB_LOGIN=lushuyu\n' >> .env
+          printf 'HEALTHCHECKS_SELFPING_URL=\n' >> .env
+          chmod 600 .env
+          bash scripts/check_hardening.sh || {
+            echo "Hardening checks failed — see output above."
+            exit 1
+          }

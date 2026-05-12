@@ -1,0 +1,80 @@
+# Aglaea v0.1 — pre-commit configuration
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+#
+# Mirrors the lint subset from .github/workflows/ci.yml for fast local feedback.
+# Full test suite (pytest, build) runs in CI only.
+
+repos:
+  # ── Python linting (ruff) ──────────────────────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^backend/
+      - id: ruff-format
+        name: ruff format check
+        files: ^backend/
+
+  # ── Python type checking (mypy quick pass) ────────────────────────────────
+  - repo: local
+    hooks:
+      - id: mypy-quick
+        name: mypy (quick, no install)
+        language: system
+        entry: bash -c 'cd backend && uv run mypy aglaea/ --ignore-missing-imports --no-error-summary 2>&1 | tail -5'
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
+  # ── Visibility drift lint (Phase 0.9) ─────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: lint-visibility
+        name: visibility drift check
+        language: python
+        entry: python scripts/lint_visibility.py
+        files: ^(backend/aglaea/routers/|backend/aglaea/security/visibility\.py)
+        pass_filenames: false
+
+  # ── CSS literal guard: no hex color or px literals in module CSS ──────────
+  # Principle 5: CSS tokens are sacred. No hex / px literal in *.module.css.
+  - repo: local
+    hooks:
+      - id: css-no-literals
+        name: CSS token guard (no hex/px literals in *.module.css)
+        language: script
+        entry: scripts/hooks/css-no-literals.sh
+        files: \.module\.css$
+        pass_filenames: false
+
+  # ── argon2 sync-wrap guard (Principle 6) ──────────────────────────────────
+  # Verifies that argon2 .verify() calls in async handlers use asyncio.to_thread.
+  - repo: local
+    hooks:
+      - id: argon2-sync-wrap
+        name: argon2 sync-wrap guard (must use asyncio.to_thread)
+        language: script
+        entry: scripts/hooks/argon2-sync-wrap.sh
+        files: ^backend/.*\.py$
+        pass_filenames: false
+
+  # ── Standard file hygiene ─────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^docs/design/
+      - id: end-of-file-fixer
+        exclude: ^docs/design/
+      - id: check-yaml
+        files: \.(yaml|yml)$
+      - id: check-json
+        files: \.json$
+      - id: check-toml
+        files: \.toml$
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main]
+        # Prevents accidental direct commits to main; use PRs.

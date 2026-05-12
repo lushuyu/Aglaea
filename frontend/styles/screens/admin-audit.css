@@ -1,0 +1,18 @@
+/* =========================================================================
+   Aglaea — Admin audit log screen
+   ========================================================================= */
+
+/* Audit details */
+.audit-details {
+  padding: 10px 16px 14px 60px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line-1);
+}
+.audit-details pre {
+  margin: 0; padding: 12px;
+  background: var(--bg-0);
+  border: 1px solid var(--line-1);
+  border-radius: 4px;
+  font-size: 11px; color: var(--fg-1);
+  overflow-x: auto;
+}

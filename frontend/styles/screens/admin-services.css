@@ -1,0 +1,29 @@
+/* =========================================================================
+   Aglaea — Admin services screen
+   ========================================================================= */
+
+/* Service detail form */
+.form-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: 1fr 1fr;
+}
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field.full { grid-column: 1 / -1; }
+.input.mono { font-family: var(--font-mono); font-size: 12px; }
+
+.subcheck-config-row {
+  display: flex; gap: 12px; align-items: center;
+  padding: 10px 12px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-radius: var(--radius);
+}
+
+/* Heartbeat events table */
+.hb-table { display: flex; flex-direction: column; }
+.hb-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-1); }
+.hb-row.hb-hd {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em;
+  padding-bottom: 8px;
+}

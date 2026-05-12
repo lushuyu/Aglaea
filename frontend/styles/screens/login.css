@@ -1,0 +1,20 @@
+/* =========================================================================
+   Aglaea — Login screen
+   ========================================================================= */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+}
+.login-card {
+  width: 440px;
+  padding: 36px;
+  border-radius: var(--radius-lg);
+}
+.login-error {
+  padding: 14px 16px;
+  background: var(--down-soft);
+  border: 1px solid var(--down-line);
+  border-radius: var(--radius);
+}

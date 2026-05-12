@@ -1,0 +1,122 @@
+/* =========================================================================
+   Aglaea — Public overview screen
+   ========================================================================= */
+
+/* ── Public tab bar (prominent section nav) ──────────────── */
+.pub-tabbar {
+  position: sticky; top: 64px; z-index: 49;
+  background: color-mix(in oklch, var(--bg-1) 85%, transparent);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border-bottom: 1px solid var(--line-2);
+  transition: transform 280ms var(--ease), opacity 200ms var(--ease);
+  will-change: transform;
+}
+.pub-tabbar.is-hidden {
+  transform: translate3d(0, -100%, 0);
+  opacity: 0;
+  pointer-events: none;
+}
+.pub-tabbar-inner {
+  max-width: 1100px; margin: 0 auto;
+  display: flex; gap: 4px;
+  padding: 6px 28px;
+}
+.pub-tab {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px;
+  color: var(--fg-2);
+  border-radius: var(--radius);
+  cursor: default;
+  transition: all var(--motion-fast) var(--ease);
+  position: relative;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-family: var(--font-serif);
+}
+.pub-tab:hover { color: var(--fg-0); background: color-mix(in oklch, var(--accent) 6%, transparent); }
+.pub-tab.on {
+  color: var(--fg-0);
+  border-bottom-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 8%, transparent);
+}
+.pub-tab.on .pub-tab-icon {
+  background: var(--accent);
+  color: var(--bg-0);
+}
+.theme-light .pub-tab.on .pub-tab-icon { color: var(--bg-2); }
+.pub-tab-icon {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-line);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 500;
+  transition: all var(--motion-fast) var(--ease);
+  flex-shrink: 0;
+}
+.pub-tab-label {
+  font-size: 16px;
+  color: inherit;
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.pub-tab-sub {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--fg-3);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.pub-tab.on .pub-tab-sub { color: var(--accent); }
+
+@media (max-width: 720px) {
+  .pub-tab { padding: 10px 12px; }
+  .pub-tab-sub { display: none; }
+}
+
+/* ── Service row (status overview) ──────────────────────────────── */
+.services-list { display: flex; flex-direction: column; }
+.service-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 2fr) auto;
+  gap: 24px;
+  padding: 18px 4px;
+  align-items: center;
+  border-bottom: 1px solid var(--line-1);
+  cursor: default;
+  transition: background var(--motion-fast);
+}
+.service-row:hover { background: var(--bg-1); }
+.service-row-left { display: flex; align-items: center; gap: 14px; }
+.service-row-mid { min-width: 0; }
+.service-row-right { display: flex; align-items: center; gap: 20px; }
+
+/* ── Subcheck strip — flex-wrap: wrap ensures 6-key set wraps at narrow widths ── */
+.subcheck-strip { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.subcheck-pip { display: inline-flex; align-items: center; gap: 5px; }
+
+/* ── Active incident card ───────────────────────────────────────── */
+.active-incident {
+  padding: 20px 24px;
+  border-left: 3px solid var(--degraded);
+  cursor: default;
+  transition: all var(--motion-fast);
+}
+.active-incident:hover { background: var(--bg-2); }
+.active-incident.skeleton-mode {
+  border-left-color: var(--accent);
+  background:
+    repeating-linear-gradient(45deg,
+      transparent, transparent 8px,
+      var(--accent-soft) 8px, var(--accent-soft) 9px);
+}
+.skeleton-notice {
+  padding: 14px 16px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+  border: 1px dashed var(--accent-line);
+}

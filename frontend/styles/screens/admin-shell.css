@@ -1,0 +1,128 @@
+/* =========================================================================
+   Aglaea — Admin shell (sidebar + main layout)
+   ========================================================================= */
+
+.admin-shell {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 100vh;
+}
+.admin-sidebar {
+  border-right: 1px solid var(--line-2);
+  background: var(--bg-1);
+  padding: 18px 14px;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh;
+}
+.admin-brand { padding: 4px 8px 18px; border-bottom: 1px solid var(--line-1); margin-bottom: 12px; }
+.admin-nav { display: flex; flex-direction: column; gap: 1px; }
+.admin-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-2);
+  font-size: 13px;
+  transition: all var(--motion-fast);
+  position: relative;
+}
+.admin-nav-item:hover { background: var(--bg-2); color: var(--fg-0); }
+.admin-nav-item.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.admin-nav-item.on .admin-nav-icon { color: var(--accent); }
+.admin-nav-icon { width: 16px; text-align: center; color: var(--fg-3); font-size: 11px; }
+.admin-nav-badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: var(--fg-0);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.admin-side-foot { margin-top: auto; padding: 14px 10px; border-top: 1px solid var(--line-1); }
+
+.admin-main { min-width: 0; }
+.admin-page { padding: 28px 36px; max-width: 1400px; }
+.admin-page-hd {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: 28px;
+  margin-top: 8px;
+}
+.admin-h2 {
+  font-family: var(--font-serif);
+  font-size: 18px; color: var(--fg-0);
+  margin: 0 0 14px;
+  font-weight: 500;
+}
+.admin-h3 {
+  font-family: var(--font-serif);
+  font-size: 16px; color: var(--fg-0);
+  margin: 0 0 12px;
+  font-weight: 500;
+}
+.admin-h4 {
+  font-family: var(--font-serif);
+  font-size: 13px;
+  color: var(--fg-0);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  margin: 0;
+}
+.admin-section { margin-bottom: 36px; }
+
+/* Admin tables */
+.admin-table {
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  overflow: hidden;
+}
+.admin-table-hd, .admin-table-row {
+  display: flex; align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+}
+.admin-table-hd {
+  background: var(--bg-2);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--line-2);
+}
+.admin-table-row {
+  border-bottom: 1px solid var(--line-1);
+  font-size: 13px;
+  cursor: default;
+  transition: background var(--motion-fast);
+}
+.admin-table-row:last-child { border-bottom: none; }
+.admin-table-row.hover-row:hover { background: var(--bg-2); }
+
+.mini-toggle {
+  width: 28px; height: 16px;
+  background: var(--bg-3);
+  border-radius: 999px;
+  position: relative;
+  cursor: default;
+  display: inline-block;
+  flex-shrink: 0;
+  transition: background var(--motion-fast);
+}
+.mini-toggle[data-on="true"] { background: var(--accent); }
+.mini-toggle-dot {
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg-0);
+  transition: left var(--motion-fast);
+}
+.mini-toggle[data-on="true"] .mini-toggle-dot { left: 14px; background: var(--bg-1); }
+.theme-light .mini-toggle[data-on="true"] .mini-toggle-dot { background: var(--bg-2); }

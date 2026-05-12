@@ -1,0 +1,21 @@
+/* =========================================================================
+   Aglaea — Public incident detail screen
+   ========================================================================= */
+
+/* ── Incident detail prose ──────────────────────────────────────── */
+.incident-prose {
+  font-size: 16px; line-height: 1.7; color: var(--fg-1);
+  font-family: var(--font-serif);
+}
+.incident-prose p { margin: 0 0 16px; }
+.incident-prose strong { color: var(--fg-0); font-weight: 600; }
+.incident-prose em { color: var(--fg-2); }
+.incident-prose h2 { font-family: var(--font-serif); color: var(--fg-0); }
+
+/* ── Timeline (incident page) ──────────────────────────────────── */
+.timeline { display: flex; flex-direction: column; gap: 14px; }
+.timeline-row {
+  display: grid; grid-template-columns: 14px 100px 1fr;
+  gap: 14px; align-items: baseline;
+}
+.timeline-marker { padding-top: 4px; }

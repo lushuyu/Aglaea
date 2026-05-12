@@ -1,0 +1,17 @@
+/* =========================================================================
+   Aglaea — Public service detail screen
+   ========================================================================= */
+
+/* ── Service detail ─────────────────────────────────────────────── */
+.service-header { padding: 32px 0 16px; }
+.service-glyph-lg {
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-2);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius-md);
+}
+.subchecks-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}

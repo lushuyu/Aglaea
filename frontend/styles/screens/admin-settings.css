@@ -1,0 +1,14 @@
+/* =========================================================================
+   Aglaea — Admin settings screen
+   ========================================================================= */
+
+/* Settings */
+.settings-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-1);
+  border-bottom: none;
+}
+.settings-row:first-of-type { border-radius: var(--radius) var(--radius) 0 0; }
+.settings-row:last-of-type { border-radius: 0 0 var(--radius) var(--radius); border-bottom: 1px solid var(--line-1); }

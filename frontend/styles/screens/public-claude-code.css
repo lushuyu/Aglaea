@@ -1,0 +1,17 @@
+/* =========================================================================
+   Aglaea — Public Claude Code dashboard screen
+   ========================================================================= */
+
+/* ── Claude Code dashboard ─────────────────────────────────────── */
+.cc-stats { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); }
+.cc-grid  {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+.chart-card { padding: 18px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.chart-card-hd { display: flex; justify-content: space-between; align-items: baseline; }
+.chart-card-body { min-height: 0; }
+
+@media (max-width: 1000px) {
+  .cc-stats, .cc-grid { grid-template-columns: repeat(2, 1fr); }
+}

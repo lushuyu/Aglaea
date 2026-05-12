@@ -1,0 +1,7 @@
+/* =========================================================================
+   Aglaea — Admin Claude Code screen
+   ========================================================================= */
+
+/* CC admin */
+.cc-host-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+.host-tile { padding: 16px; }

@@ -1,0 +1,117 @@
+/* =========================================================================
+   Aglaea — Admin incident review screen
+   ========================================================================= */
+
+/* Incident review */
+.ir-header {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: 24px;
+}
+.ir-status-pill {
+  padding: 10px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  text-align: right;
+  white-space: nowrap;
+  min-width: 140px;
+}
+.ir-report-state { font-family: var(--font-serif); font-size: 18px; margin-top: 4px; }
+.ir-report-state.st-none { color: var(--down); }
+.ir-report-state.st-draft { color: var(--accent); }
+.ir-report-state.st-published { color: var(--ok); }
+.ir-report-state.st-rejected { color: var(--fg-3); }
+
+.ir-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 20px;
+}
+@media (max-width: 1280px) { .ir-grid { grid-template-columns: 1fr; } }
+.ir-left { display: flex; flex-direction: column; gap: 16px; }
+.ir-right { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 20px; align-self: start; max-height: calc(100vh - 40px); overflow: auto; }
+
+.ir-editor-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.ir-editor-tabs {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 14px; background: var(--bg-2);
+  border-bottom: 1px solid var(--line-2);
+}
+.ir-tab {
+  padding: 12px 14px;
+  font-size: 12px; color: var(--fg-2);
+  border-bottom: 2px solid transparent;
+  cursor: default;
+  transition: all var(--motion-fast);
+  display: flex; align-items: center; gap: 8px;
+}
+.ir-tab.on { color: var(--fg-0); border-bottom-color: var(--accent); }
+.ir-tab:hover { color: var(--fg-0); }
+.ir-dirty-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
+
+.ir-editor-pane { padding: 18px; display: flex; flex-direction: column; gap: 16px; }
+.ir-textarea {
+  min-height: 200px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.ir-published-block {
+  background: var(--bg-2);
+  border: 1px solid var(--ok-line);
+  border-radius: var(--radius);
+  padding: 0;
+}
+.ir-published-block summary {
+  list-style: none; padding: 10px 14px; cursor: default;
+  display: flex; align-items: center; gap: 8px;
+}
+.ir-published-block summary::-webkit-details-marker { display: none; }
+.ir-published-text {
+  padding: 0 14px 14px;
+  font-size: 13px; line-height: 1.6; color: var(--fg-1);
+  white-space: pre-wrap;
+}
+
+.ir-skeleton-state {
+  padding: 16px;
+  background: var(--bg-2);
+  border: 1px dashed var(--down-line);
+  border-radius: var(--radius);
+}
+
+.ir-regen {
+  padding: 14px;
+  background: var(--bg-2);
+  border-radius: var(--radius);
+  border: 1px solid var(--line-1);
+}
+
+.ir-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 18px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line-2);
+}
+.ir-meta-card { padding: 16px; }
+.ir-meta-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line-1); }
+.ir-meta-row:last-child { border-bottom: none; }
+
+.similar-row {
+  display: flex; gap: 12px; align-items: center;
+  padding: 8px 10px; border-radius: 4px; cursor: default;
+}
+
+/* Diff */
+.diff { font-family: var(--font-mono); font-size: 12px; line-height: 1.55; }
+.diff-row { display: flex; padding: 1px 0; }
+.diff-marker { width: 18px; text-align: center; color: var(--fg-3); }
+.diff-text { flex: 1; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+.diff-add { background: var(--ok-soft); color: var(--fg-0); }
+.diff-add .diff-marker { color: var(--ok); }
+.diff-del { background: var(--down-soft); color: var(--fg-0); text-decoration: line-through; text-decoration-color: var(--down-line); }
+.diff-del .diff-marker { color: var(--down); }
+.diff-same { color: var(--fg-2); }

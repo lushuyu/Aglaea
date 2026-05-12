@@ -1,0 +1,7 @@
+/* Aglaea — global resets and base styles */
+/* Imports tokens.css which defines all CSS custom properties */
+@import url("https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import "../styles/tokens.css";
+
+/* All base reset rules are in tokens.css — no duplication here. */
+/* This file is the Next.js globals entry point that pulls in the token layer. */

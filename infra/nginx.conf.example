@@ -1,0 +1,127 @@
+# Aglaea v0.1 — nginx server blocks
+# File: /etc/nginx/sites-available/aglaea.conf
+# Symlink: ln -s /etc/nginx/sites-available/aglaea.conf /etc/nginx/sites-enabled/aglaea.conf
+# Reload:  nginx -t && systemctl reload nginx
+#
+# IMPORTANT — DNS:
+#   DNS records for BOTH status.lushuyu.site AND otel.lushuyu.site MUST be
+#   set to orange-cloud (proxied through Cloudflare). Gray-cloud bypasses CF
+#   Universal SSL and exposes the Origin CA cert directly to browsers, which
+#   will show a trust error.
+#
+# IMPORTANT — TLS:
+#   Uses Cloudflare Origin CA wildcard cert for *.lushuyu.site (~15-year validity).
+#   No certbot / acme.sh / cron needed.
+#   Replace the placeholder paths below with the actual paths on sg-server.
+#   To discover the existing paths: grep -r "ssl_certificate" /etc/nginx/sites-available/
+#   (Cerydra's conf on the same VPS uses the same cert — mirror those paths here.)
+#
+# Placeholder cert paths — adjust to match the actual files on sg-server:
+#   /etc/ssl/cloudflare/lushuyu.site.pem   <- CF Origin CA certificate
+#   /etc/ssl/cloudflare/lushuyu.site.key   <- private key (chmod 600, owned root)
+
+# ── Public status page + admin dashboard ──────────────────────────────────────
+server {
+    listen 443 ssl http2;
+    server_name status.lushuyu.site;
+
+    # Cloudflare Origin CA wildcard cert (*.lushuyu.site)
+    # Adjust these two paths to match the actual location on sg-server:
+    ssl_certificate     /etc/ssl/cloudflare/lushuyu.site.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/lushuyu.site.key;
+
+    # Recommended TLS hardening
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Propagate request identity headers
+    proxy_set_header Host              $host;
+    proxy_set_header X-Forwarded-For   $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Request-ID      $http_x_request_id;
+
+    # Backend API (FastAPI, docker-internal)
+    location /api/ {
+        proxy_pass         http://aglaea-backend:8000;
+        proxy_http_version 1.1;
+        proxy_set_header   Connection "";
+        proxy_read_timeout 60s;
+    }
+
+    # Frontend (Next.js, docker-internal)
+    location / {
+        proxy_pass         http://aglaea-frontend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade    $http_upgrade;
+        proxy_set_header   Connection $connection_upgrade;
+        proxy_read_timeout 60s;
+    }
+}
+
+# Redirect HTTP → HTTPS
+server {
+    listen 80;
+    server_name status.lushuyu.site;
+    return 301 https://$host$request_uri;
+}
+
+# ── OTel Collector OTLP/HTTP endpoint (bearer-gated) ─────────────────────────
+# DNS: otel.lushuyu.site MUST be orange-cloud (CF proxied).
+# Only traffic bearing a valid Bearer token is forwarded to otelcol.
+# Invalid/missing token returns 401 — no data reaches VictoriaMetrics.
+server {
+    listen 443 ssl http2;
+    server_name otel.lushuyu.site;
+
+    # Same Cloudflare Origin CA cert — adjust paths to match sg-server:
+    ssl_certificate     /etc/ssl/cloudflare/lushuyu.site.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/lushuyu.site.key;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Bearer token gate — OTEL_SHARED_TOKEN must match value in .env
+    # nginx cannot read .env directly; set the expected token as a literal here
+    # OR use nginx's env_vars module + lua, OR use the include-env approach.
+    # Simplest v0.1 approach: paste the token value as the literal after "Bearer ".
+    # Example (replace <YOUR_TOKEN_VALUE> with the actual OTEL_SHARED_TOKEN):
+    #
+    #   if ($http_authorization != "Bearer <YOUR_TOKEN_VALUE>") {
+    #       return 401;
+    #   }
+    #
+    # NOTE: nginx `if` is intentionally used here per the SPEC §10.2 pattern.
+    # This is safe because the block only does `return` — no proxy_pass inside if.
+    if ($http_authorization != "Bearer REPLACE_WITH_OTEL_SHARED_TOKEN") {
+        return 401;
+    }
+
+    location / {
+        proxy_pass         http://otelcol:4318;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Forwarded-For   $remote_addr;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   X-Request-ID      $http_x_request_id;
+        proxy_read_timeout 30s;
+    }
+}
+
+# Redirect HTTP → HTTPS for otel subdomain
+server {
+    listen 80;
+    server_name otel.lushuyu.site;
+    return 301 https://$host$request_uri;
+}
+
+# WebSocket upgrade map (required for Next.js HMR in dev; harmless in prod)
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}

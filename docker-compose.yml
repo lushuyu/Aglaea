@@ -1,0 +1,101 @@
+# Aglaea v0.1 — docker-compose
+# SPEC §10.1: 5 services, all on internal bridge network.
+# postgres / victoriametrics / otelcol have NO host ports exposed (AC3.1, AC5.3).
+
+services:
+  postgres:
+    image: timescale/timescaledb:2.17.0-pg16
+    environment:
+      POSTGRES_USER: aglaea
+      POSTGRES_DB: aglaea
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aglaea -d aglaea"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.103.0
+    command:
+      - "--retentionPeriod=1y"
+      - "--storageDataPath=/storage"
+      - "--httpListenAddr=:8428"
+    volumes:
+      - vm_data:/storage
+    networks:
+      - internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  otelcol:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otelcol-config.yaml:/etc/otelcol/config.yaml:ro
+    environment:
+      - OTEL_SHARED_TOKEN=${OTEL_SHARED_TOKEN}
+    networks:
+      - internal
+    restart: unless-stopped
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    # NOTE: otelcol port 4318 (OTLP/HTTP) is NOT exposed to host.
+    # nginx on the host reverse-proxies to this container via docker DNS.
+    # Bearer auth is enforced at the nginx layer (see infra/nginx.conf.example).
+
+  aglaea-backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://aglaea:${POSTGRES_PASSWORD}@postgres:5432/aglaea
+      VM_URL: http://victoriametrics:8428
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GITHUB_OAUTH_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID}
+      GITHUB_OAUTH_CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
+      SESSION_SECRET: ${SESSION_SECRET}
+      BOOTSTRAP_GITHUB_LOGIN: ${BOOTSTRAP_GITHUB_LOGIN}
+      HEALTHCHECKS_SELFPING_URL: ${HEALTHCHECKS_SELFPING_URL}
+    networks:
+      - internal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      victoriametrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  aglaea-frontend:
+    build: ./frontend
+    networks:
+      - internal
+    restart: unless-stopped
+    depends_on:
+      aglaea-backend:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  vm_data:
+
+networks:
+  internal:
+    driver: bridge

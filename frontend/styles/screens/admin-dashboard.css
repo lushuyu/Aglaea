@@ -1,0 +1,86 @@
+/* =========================================================================
+   Aglaea — Admin dashboard screen
+   ========================================================================= */
+
+/* Glance row */
+.glance-row {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-bottom: 28px;
+}
+.glance-tile {
+  padding: 18px 20px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--fg-3);
+  border-radius: var(--radius-md);
+  transition: all var(--motion-fast);
+}
+.glance-tile.tone-ok { border-left-color: var(--ok); }
+.glance-tile.tone-degraded { border-left-color: var(--degraded); }
+.glance-tile.tone-down { border-left-color: var(--down); }
+.glance-tile.clickable { cursor: default; }
+.glance-tile.clickable:hover { background: var(--bg-2); border-color: var(--line-3); }
+.glance-value { font-size: 36px; line-height: 1.1; color: var(--fg-0); margin-top: 6px; }
+.tone-down .glance-value { color: var(--down); }
+.tone-degraded .glance-value { color: var(--degraded); }
+
+/* Admin incident card */
+.admin-incident-card {
+  padding: 18px 22px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--degraded);
+  border-radius: var(--radius-md);
+  cursor: default;
+  transition: all var(--motion-fast);
+}
+.admin-incident-card:hover { background: var(--bg-2); }
+.admin-incident-card.is-skeleton {
+  border-left-color: var(--down);
+  background:
+    repeating-linear-gradient(135deg, transparent, transparent 10px,
+      var(--down-soft) 10px, var(--down-soft) 11px),
+    var(--bg-1);
+}
+
+/* dashboard 2-col grid */
+.dash-grid {
+  display: grid; gap: 32px;
+  grid-template-columns: 1.4fr 1fr;
+  margin-top: 36px;
+}
+@media (max-width: 1100px) { .dash-grid { grid-template-columns: 1fr; } }
+
+.admin-draft-row {
+  padding: 12px 14px;
+  display: grid; grid-template-columns: minmax(140px, 1fr) 2fr auto; gap: 16px; align-items: center;
+  cursor: default;
+}
+
+.quick-grid {
+  display: grid; gap: 8px; grid-template-columns: 1fr 1fr;
+}
+.quick-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-1);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  cursor: default;
+  text-align: left;
+}
+.quick-link:hover { background: var(--bg-2); border-color: var(--line-3); }
+.quick-icon {
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-soft); color: var(--accent);
+  border-radius: 6px; font-size: 14px;
+}
+
+.activity-feed { display: flex; flex-direction: column; gap: 0; }
+.activity-row {
+  padding: 10px 0;
+  display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: baseline;
+  border-bottom: 1px solid var(--line-1);
+}
