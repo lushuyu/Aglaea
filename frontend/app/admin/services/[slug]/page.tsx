@@ -131,7 +131,7 @@ export default function AdminServiceDetailPage() {
     <div className="admin-page">
       <div className="admin-page-hd">
         <h1 className="admin-h2">{svc.display_name}</h1>
-        <StatusBadge status={svc.last_status} />
+        <StatusBadge status={svc.last_status ?? "unknown"} />
       </div>
 
       {/* Heartbeat strip */}

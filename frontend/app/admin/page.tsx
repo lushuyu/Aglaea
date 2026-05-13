@@ -298,7 +298,7 @@ export default function AdminDashboard() {
                   </span>
                 </td>
                 <td>
-                  <StatusBadge status={svc.last_status} size="sm" />
+                  <StatusBadge status={svc.last_status ?? "unknown"} size="sm" />
                 </td>
                 <td>
                   <span
@@ -319,7 +319,7 @@ export default function AdminDashboard() {
                       color: "var(--fg-1)",
                     }}
                   >
-                    {svc.uptime_30d_pct.toFixed(1)}%
+                    {(svc.uptime_30d_pct ?? 100).toFixed(1)}%
                   </span>
                 </td>
               </tr>
