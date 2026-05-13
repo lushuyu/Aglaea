@@ -25,10 +25,10 @@ from aglaea.schemas.public import (
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 
-@router.get("/services", response_model=list[PublicService])
+@router.get("/services")
 async def list_services(
     session: AsyncSession = Depends(get_session),
-) -> list[PublicService]:
+) -> dict[str, list[PublicService]]:
     stmt = (
         select(Service)
         .where(Service.public_visible)
@@ -40,29 +40,26 @@ async def list_services(
         )
     )
     rows = list((await session.execute(stmt)).scalars())
-    return [PublicService.model_validate(r) for r in rows]
+    return {"services": [PublicService.model_validate(r) for r in rows]}
 
 
-@router.get("/services/{slug}", response_model=PublicService)
+@router.get("/services/{slug}")
 async def get_service(
     slug: str,
     session: AsyncSession = Depends(get_session),
-) -> PublicService:
+) -> dict[str, PublicService]:
     stmt = select(Service).where(Service.slug == slug, Service.public_visible)
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
-    return PublicService.model_validate(row)
+    return {"service": PublicService.model_validate(row)}
 
 
-@router.get(
-    "/services/{slug}/incidents",
-    response_model=list[PublicIncidentPublished | PublicIncidentSkeleton],
-)
+@router.get("/services/{slug}/incidents")
 async def list_incidents(
     slug: str,
     session: AsyncSession = Depends(get_session),
-) -> list[PublicIncidentPublished | PublicIncidentSkeleton]:
+) -> dict[str, list[PublicIncidentPublished | PublicIncidentSkeleton]]:
     service_stmt = select(Service).where(Service.slug == slug, Service.public_visible)
     service = (await session.execute(service_stmt)).scalar_one_or_none()
     if service is None:
@@ -101,18 +98,15 @@ async def list_incidents(
                     affected_subchecks=list(inc.affected_subchecks or []),
                 )
             )
-    return out
+    return {"incidents": out}
 
 
-@router.get(
-    "/services/{slug}/incidents/{incident_id}",
-    response_model=PublicIncidentPublished | PublicIncidentSkeleton,
-)
+@router.get("/services/{slug}/incidents/{incident_id}")
 async def get_incident(
     slug: str,
     incident_id: int,
     session: AsyncSession = Depends(get_session),
-) -> PublicIncidentPublished | PublicIncidentSkeleton:
+) -> dict[str, object]:
     stmt = (
         select(Incident, Service)
         .join(Service, Service.id == Incident.service_id)
@@ -127,24 +121,31 @@ async def get_incident(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     incident, service = row
     if incident.published_text and incident.published_at:
-        return PublicIncidentPublished(
+        inc_payload: PublicIncidentPublished | PublicIncidentSkeleton = (
+            PublicIncidentPublished(
+                id=incident.id,
+                service_slug=service.slug,
+                status=incident.status.value,  # type: ignore[arg-type]
+                started_at=incident.started_at,
+                resolved_at=incident.resolved_at,
+                affected_subchecks=list(incident.affected_subchecks or []),
+                published_text=incident.published_text,
+                published_at=incident.published_at,
+            )
+        )
+    else:
+        inc_payload = PublicIncidentSkeleton(
             id=incident.id,
             service_slug=service.slug,
             status=incident.status.value,  # type: ignore[arg-type]
             started_at=incident.started_at,
             resolved_at=incident.resolved_at,
             affected_subchecks=list(incident.affected_subchecks or []),
-            published_text=incident.published_text,
-            published_at=incident.published_at,
         )
-    return PublicIncidentSkeleton(
-        id=incident.id,
-        service_slug=service.slug,
-        status=incident.status.value,  # type: ignore[arg-type]
-        started_at=incident.started_at,
-        resolved_at=incident.resolved_at,
-        affected_subchecks=list(incident.affected_subchecks or []),
-    )
+    # Timeline/similar are not yet computed server-side; return empty lists so
+    # the frontend's `incResp.similar?.map(...)` and timeline iterators are
+    # safe to use.
+    return {"incident": inc_payload, "timeline": [], "similar": []}
 
 
 @router.get("/claude-code/series/{metric}")
