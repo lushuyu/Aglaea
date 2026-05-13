@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -10,9 +11,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aglaea.db import get_session
+from aglaea.models.api_keys import ApiKey
+from aglaea.models.incidents import Incident
 from aglaea.models.services import Service, ServiceKind
 from aglaea.routers._deps import client_ip, require_admin_row
-from aglaea.schemas.service import ServiceAdminOut, ServiceCreate, ServiceUpdate
+from aglaea.schemas.incident import IncidentAdminOut
+from aglaea.schemas.service import (
+    ApiKeyOut,
+    ServiceAdminOut,
+    ServiceCreate,
+    ServiceUpdate,
+)
 from aglaea.security.audit import audit
 
 router = APIRouter(prefix="/api/admin/services", tags=["admin-services"])
@@ -72,17 +81,56 @@ async def create_service(
     return ServiceAdminOut.model_validate(service)
 
 
-@router.patch("/{service_id}", response_model=ServiceAdminOut)
+async def _get_service_by_slug(session: AsyncSession, slug: str) -> Service:
+    row = (
+        await session.execute(select(Service).where(Service.slug == slug))
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    return row
+
+
+@router.get("/{slug}")
+async def get_service(
+    slug: str,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
+    await require_admin_row(request, session)
+    service = await _get_service_by_slug(session, slug)
+    api_keys = list(
+        (
+            await session.execute(
+                select(ApiKey).where(ApiKey.service_id == service.id)
+            )
+        ).scalars()
+    )
+    incidents = list(
+        (
+            await session.execute(
+                select(Incident)
+                .where(Incident.service_id == service.id)
+                .order_by(Incident.started_at.desc())
+                .limit(50)
+            )
+        ).scalars()
+    )
+    return {
+        "service": ServiceAdminOut.model_validate(service),
+        "api_keys": [ApiKeyOut.model_validate(k) for k in api_keys],
+        "incidents": [IncidentAdminOut.model_validate(i) for i in incidents],
+    }
+
+
+@router.patch("/{slug}")
 async def update_service(
-    service_id: int,
+    slug: str,
     payload: ServiceUpdate,
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> ServiceAdminOut:
+) -> dict[str, ServiceAdminOut]:
     admin = await require_admin_row(request, session)
-    service = await session.get(Service, service_id)
-    if service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    service = await _get_service_by_slug(session, slug)
 
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
@@ -96,24 +144,22 @@ async def update_service(
         actor_type="admin",
         actor_id=str(admin.id),
         ip=client_ip(request),
-        details={"service_id": service_id, "fields": sorted(updates.keys())},
+        details={"service_slug": slug, "fields": sorted(updates.keys())},
     )
     await session.commit()
-    return ServiceAdminOut.model_validate(service)
+    return {"service": ServiceAdminOut.model_validate(service)}
 
 
-@router.delete("/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{slug}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_service(
-    service_id: int,
+    slug: str,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> None:
     admin = await require_admin_row(request, session)
-    service = await session.get(Service, service_id)
-    if service is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    service = await _get_service_by_slug(session, slug)
     # Hard delete (CASCADE handles api_keys + heartbeats). Audit before delete.
-    slug = service.slug
+    service_id = service.id
     await session.delete(service)
     await audit(
         session,
