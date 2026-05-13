@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   adminGetService,
   adminUpdateService,
+  adminDeleteService,
   adminCreateApiKey,
   adminRevokeApiKey,
 } from "@/lib/api";
@@ -16,6 +17,7 @@ import type { ServiceKind } from "@/types/api";
 
 export default function AdminServiceDetailPage() {
   const params = useParams<{ slug: string }>();
+  const router = useRouter();
   const slug = params.slug;
   const queryClient = useQueryClient();
   const [newKeyLabel, setNewKeyLabel] = useState("");
@@ -85,6 +87,24 @@ export default function AdminServiceDetailPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => adminDeleteService(slug),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-services"] });
+      router.push("/admin/services");
+    },
+  });
+
+  function handleDelete() {
+    if (
+      window.confirm(
+        `Delete service "${slug}"? This removes all heartbeats, incidents, and API keys. This cannot be undone.`
+      )
+    ) {
+      deleteMutation.mutate();
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="admin-page">
@@ -131,7 +151,27 @@ export default function AdminServiceDetailPage() {
     <div className="admin-page">
       <div className="admin-page-hd">
         <h1 className="admin-h2">{svc.display_name}</h1>
-        <StatusBadge status={svc.last_status ?? "unknown"} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <StatusBadge status={svc.last_status ?? "unknown"} />
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            style={{
+              padding: "6px 14px",
+              background: "transparent",
+              color: "var(--down)",
+              border: "1px solid var(--down)",
+              borderRadius: "var(--radius)",
+              fontFamily: "var(--font-mono)",
+              fontSize: 12,
+              cursor: deleteMutation.isPending ? "default" : "pointer",
+              opacity: deleteMutation.isPending ? 0.5 : 1,
+            }}
+          >
+            {deleteMutation.isPending ? "Deleting…" : "Delete service"}
+          </button>
+        </div>
       </div>
 
       {/* Heartbeat strip */}

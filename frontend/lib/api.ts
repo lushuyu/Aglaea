@@ -153,6 +153,17 @@ export async function adminUpdateService(
   );
 }
 
+/** DELETE /api/admin/services/:slug — returns 204, body intentionally empty */
+export async function adminDeleteService(slug: string): Promise<void> {
+  const res = await fetch(
+    `${adminBase()}/api/admin/services/${encodeURIComponent(slug)}`,
+    { method: "DELETE", credentials: "include" }
+  );
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
+}
+
 /** GET /api/admin/incidents */
 export async function adminListIncidents(): Promise<AdminIncidentsResponse> {
   return apiFetch<AdminIncidentsResponse>(`${adminBase()}/api/admin/incidents`, {
