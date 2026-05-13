@@ -43,17 +43,18 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Request-ID      $http_x_request_id;
 
-    # Backend API (FastAPI, docker-internal)
+    # Backend API (FastAPI). Bound to 127.0.0.1:8000 by docker-compose.
     location /api/ {
-        proxy_pass         http://aglaea-backend:8000;
+        proxy_pass         http://127.0.0.1:8000;
         proxy_http_version 1.1;
         proxy_set_header   Connection "";
         proxy_read_timeout 60s;
     }
 
-    # Frontend (Next.js, docker-internal)
+    # Frontend (Next.js). Bound to 127.0.0.1:3001 by docker-compose
+    # (3001 host → 3000 container; 3000 is taken by seeleInvest on this VPS).
     location / {
-        proxy_pass         http://aglaea-frontend:3000;
+        proxy_pass         http://127.0.0.1:3001;
         proxy_http_version 1.1;
         proxy_set_header   Upgrade    $http_upgrade;
         proxy_set_header   Connection $connection_upgrade;
@@ -103,7 +104,8 @@ server {
     }
 
     location / {
-        proxy_pass         http://otelcol:4318;
+        # OTel Collector OTLP/HTTP. Bound to 127.0.0.1:4318 by docker-compose.
+        proxy_pass         http://127.0.0.1:4318;
         proxy_http_version 1.1;
         proxy_set_header   Host              $host;
         proxy_set_header   X-Forwarded-For   $remote_addr;

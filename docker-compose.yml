@@ -47,15 +47,16 @@ services:
       - ./infra/otelcol-config.yaml:/etc/otelcol/config.yaml:ro
     environment:
       - OTEL_SHARED_TOKEN=${OTEL_SHARED_TOKEN}
+    ports:
+      # OTLP/HTTP bound to host loopback only — nginx on host proxies to this.
+      # Not reachable externally; bearer-auth still enforced at nginx layer.
+      - "127.0.0.1:4318:4318"
     networks:
       - internal
     restart: unless-stopped
     depends_on:
       victoriametrics:
         condition: service_healthy
-    # NOTE: otelcol port 4318 (OTLP/HTTP) is NOT exposed to host.
-    # nginx on the host reverse-proxies to this container via docker DNS.
-    # Bearer auth is enforced at the nginx layer (see infra/nginx.conf.example).
 
   aglaea-backend:
     build: ./backend
@@ -68,6 +69,9 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       BOOTSTRAP_GITHUB_LOGIN: ${BOOTSTRAP_GITHUB_LOGIN}
       HEALTHCHECKS_SELFPING_URL: ${HEALTHCHECKS_SELFPING_URL}
+    ports:
+      # FastAPI bound to host loopback — nginx on host proxies /api/ here.
+      - "127.0.0.1:8000:8000"
     networks:
       - internal
     restart: unless-stopped
@@ -85,6 +89,10 @@ services:
 
   aglaea-frontend:
     build: ./frontend
+    ports:
+      # Next.js bound to host loopback. Port 3001 on host avoids clash with
+      # seeleInvest (Next.js on 3000 on the same VPS).
+      - "127.0.0.1:3001:3000"
     networks:
       - internal
     restart: unless-stopped

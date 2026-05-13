@@ -46,6 +46,7 @@ Thumbs.db
 **/.omc/handoffs/
 **/.omc/notes/
 **/.omc/notepad.md
+**/.omc/sessions/
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 *.log
