@@ -24,16 +24,28 @@ from aglaea.security.bearer import generate_key
 router = APIRouter(prefix="/api/admin/services", tags=["admin-keys"])
 
 
-@router.get("/{service_id}/keys", response_model=list[ApiKeyOut])
+async def _service_by_slug(session: AsyncSession, slug: str) -> Service:
+    row = (
+        await session.execute(select(Service).where(Service.slug == slug))
+    ).scalar_one_or_none()
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="service not found"
+        )
+    return row
+
+
+@router.get("/{slug}/keys", response_model=list[ApiKeyOut])
 async def list_keys(
-    service_id: int,
+    slug: str,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> list[ApiKeyOut]:
     await require_admin_row(request, session)
+    service = await _service_by_slug(session, slug)
     stmt = (
         select(ApiKey)
-        .where(ApiKey.service_id == service_id)
+        .where(ApiKey.service_id == service.id)
         .order_by(ApiKey.created_at.desc())
     )
     rows = list((await session.execute(stmt)).scalars())
@@ -41,22 +53,18 @@ async def list_keys(
 
 
 @router.post(
-    "/{service_id}/keys",
+    "/{slug}/keys",
     response_model=ApiKeyCreatedOnce,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_key(
-    service_id: int,
+    slug: str,
     payload: ApiKeyCreate,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> ApiKeyCreatedOnce:
     admin = await require_admin_row(request, session)
-    service = await session.get(Service, service_id)
-    if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="service not found"
-        )
+    service = await _service_by_slug(session, slug)
 
     minted = generate_key()
     row = ApiKey(
@@ -100,18 +108,19 @@ async def create_key(
 
 
 @router.delete(
-    "/{service_id}/keys/{key_id}",
+    "/{slug}/keys/{key_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def revoke_key(
-    service_id: int,
+    slug: str,
     key_id: int,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ) -> None:
     admin = await require_admin_row(request, session)
+    service = await _service_by_slug(session, slug)
     stmt = select(ApiKey).where(
-        ApiKey.id == key_id, ApiKey.service_id == service_id
+        ApiKey.id == key_id, ApiKey.service_id == service.id
     )
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
@@ -125,6 +134,11 @@ async def revoke_key(
         actor_type="admin",
         actor_id=str(admin.id),
         ip=client_ip(request),
-        details={"service_id": service_id, "key_id": key_id, "label": row.label},
+        details={
+            "service_id": service.id,
+            "service_slug": slug,
+            "key_id": key_id,
+            "label": row.label,
+        },
     )
     await session.commit()

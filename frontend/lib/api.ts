@@ -272,16 +272,17 @@ export async function adminCreateApiKey(
   );
 }
 
-/** DELETE /api/admin/services/:slug/keys/:keyId */
+/** DELETE /api/admin/services/:slug/keys/:keyId — returns 204, no body */
 export async function adminRevokeApiKey(
   slug: string,
   keyId: string
 ): Promise<void> {
-  await apiFetch<void>(
+  const res = await fetch(
     `${adminBase()}/api/admin/services/${encodeURIComponent(slug)}/keys/${encodeURIComponent(keyId)}`,
-    {
-      method: "DELETE",
-      credentials: "include",
-    }
+    { method: "DELETE", credentials: "include" }
   );
+  if (!res.ok) {
+    throw new Error(`API error ${res.status}: ${res.statusText}`);
+  }
+  return;
 }
