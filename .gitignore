@@ -47,6 +47,10 @@ Thumbs.db
 **/.omc/notes/
 **/.omc/notepad.md
 **/.omc/sessions/
+**/.omc/project-memory.json
+
+# ── TypeScript incremental cache ──────────────────────────────────────────────
+*.tsbuildinfo
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 *.log

@@ -105,7 +105,7 @@ export default async function PublicOverview() {
             </div>
 
             <div className="service-row-right">
-              <StatusBadge status={svc.last_status} size="sm" />
+              <StatusBadge status={svc.last_status ?? "unknown"} size="sm" />
             </div>
           </div>
         ))}

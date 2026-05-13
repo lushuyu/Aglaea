@@ -71,7 +71,7 @@ export default async function PublicServiceDetail({ params }: Props) {
         </div>
 
         <StatusBanner
-          status={svc.last_status}
+          status={svc.last_status ?? "unknown"}
           title={STATUS_LABEL[svc.last_status ?? "unknown"] ?? svc.last_status ?? "unknown"}
           sub={`Last checked ${fmtTime(svc.last_heartbeat_at)}`}
         />

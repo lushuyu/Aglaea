@@ -42,7 +42,7 @@ export default function LoginPage() {
         </div>
 
         <a
-          href="/api/auth/login/github"
+          href="/api/auth/github/login"
           style={{
             display: "flex",
             alignItems: "center",

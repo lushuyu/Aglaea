@@ -4,6 +4,7 @@ import { getPublicService, getPublicIncidentHistory } from "@/lib/api";
 import Breadcrumb from "@/components/Breadcrumb";
 import StatusBadge from "@/components/StatusBadge";
 import { fmtTime, fmtDuration } from "@/lib/fmt";
+import type { Incident } from "@/types/api";
 
 export const revalidate = 30;
 
@@ -21,7 +22,7 @@ export default async function PublicIncidentHistory({ params }: Props) {
     notFound();
   }
 
-  let incidents = [];
+  let incidents: Incident[] = [];
   try {
     incidents = await getPublicIncidentHistory(slug);
   } catch {

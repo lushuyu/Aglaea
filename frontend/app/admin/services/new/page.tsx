@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminCreateService } from "@/lib/api";
@@ -278,7 +279,7 @@ export default function AdminNewServicePage() {
           >
             {mutation.isPending ? "Creating…" : "Create service"}
           </button>
-          <a
+          <Link
             href="/admin/services"
             style={{
               fontSize: 13,
@@ -287,7 +288,7 @@ export default function AdminNewServicePage() {
             }}
           >
             Cancel
-          </a>
+          </Link>
         </div>
       </form>
     </div>

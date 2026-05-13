@@ -257,7 +257,7 @@ export default async function PublicIncidentDetail({ params }: Props) {
                 >
                   #{s.id}
                 </span>
-                <span style={{ flex: 1 }}>{s.summary}</span>
+                <span style={{ flex: 1 }}>{s.affected_subchecks?.join(", ") || "Incident"}</span>
                 <span
                   style={{
                     fontFamily: "var(--font-mono)",

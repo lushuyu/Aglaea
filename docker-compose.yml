@@ -34,7 +34,7 @@ services:
       - internal
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8428/health | grep -q ok"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8428/health | grep -qi ok"]
       interval: 15s
       timeout: 5s
       retries: 3

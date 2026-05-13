@@ -88,7 +88,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <a
-            href="/api/auth/login/github"
+            href="/api/auth/github/login"
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: 12,
