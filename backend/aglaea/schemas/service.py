@@ -19,6 +19,7 @@ class ServiceCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=1000)
     kind: ServiceKindLiteral
+    glyph: str | None = Field(default=None, max_length=50)
     public_visible: bool = True
     expected_interval_seconds: int | None = Field(default=None, ge=1)
     probe_url: str | None = Field(default=None, max_length=2000)
@@ -47,6 +48,7 @@ class ServiceUpdate(BaseModel):
 
     display_name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=1000)
+    glyph: str | None = Field(default=None, max_length=50)
     public_visible: bool | None = None
     expected_interval_seconds: int | None = Field(default=None, ge=1)
     probe_url: str | None = Field(default=None, max_length=2000)

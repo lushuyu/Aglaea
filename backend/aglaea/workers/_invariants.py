@@ -40,19 +40,19 @@ async def worker_loop(
     - asyncio.CancelledError → propagates (lifespan shutdown).
     """
     backoff = INITIAL_BACKOFF_SECONDS
-    log.info("worker.started", extra={"name": name, "interval": interval_seconds})
+    log.info("worker.started", extra={"worker": name, "interval": interval_seconds})
     while True:
         try:
             await body()
             backoff = INITIAL_BACKOFF_SECONDS
             await asyncio.sleep(interval_seconds)
         except asyncio.CancelledError:
-            log.info("worker.cancelled_inside_loop", extra={"name": name})
+            log.info("worker.cancelled_inside_loop", extra={"worker": name})
             raise
         except Exception as exc:  # noqa: BLE001 — that's the point of this wrapper
             log.exception(
                 "worker.tick.failed",
-                extra={"name": name, "backoff": backoff},
+                extra={"worker": name, "backoff": backoff},
             )
             await send_alert(
                 title=f"Aglaea worker tick failed: {name}",
