@@ -18,16 +18,16 @@ from aglaea.security.audit import audit
 router = APIRouter(prefix="/api/admin/services", tags=["admin-services"])
 
 
-@router.get("", response_model=list[ServiceAdminOut])
+@router.get("")
 async def list_services(
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> list[ServiceAdminOut]:
+) -> dict[str, list[ServiceAdminOut]]:
     await require_admin_row(request, session)
     rows = list(
         (await session.execute(select(Service).order_by(Service.display_name))).scalars()
     )
-    return [ServiceAdminOut.model_validate(r) for r in rows]
+    return {"services": [ServiceAdminOut.model_validate(r) for r in rows]}
 
 
 @router.post("", response_model=ServiceAdminOut, status_code=status.HTTP_201_CREATED)

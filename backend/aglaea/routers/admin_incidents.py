@@ -22,13 +22,13 @@ from aglaea.workers.report_generator import ReportTrigger, enqueue_report_trigge
 router = APIRouter(prefix="/api/admin/incidents", tags=["admin-incidents"])
 
 
-@router.get("", response_model=list[IncidentAdminOut])
+@router.get("")
 async def list_incidents(
     request: Request,
     session: AsyncSession = Depends(get_session),
     status_filter: str | None = Query(default=None, alias="status"),
     service_id: int | None = Query(default=None),
-) -> list[IncidentAdminOut]:
+) -> dict[str, list[IncidentAdminOut]]:
     await require_admin_row(request, session)
     stmt = select(Incident).order_by(desc(Incident.started_at)).limit(200)
     if status_filter:
@@ -36,7 +36,7 @@ async def list_incidents(
     if service_id is not None:
         stmt = stmt.where(Incident.service_id == service_id)
     rows = list((await session.execute(stmt)).scalars())
-    return [IncidentAdminOut.model_validate(r) for r in rows]
+    return {"incidents": [IncidentAdminOut.model_validate(r) for r in rows]}
 
 
 @router.get("/{incident_id}", response_model=IncidentAdminOut)

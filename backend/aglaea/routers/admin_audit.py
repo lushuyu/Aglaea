@@ -23,7 +23,7 @@ async def list_audit(
     event: str | None = Query(default=None),
     since: datetime | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=1000),
-) -> list[dict[str, Any]]:
+) -> dict[str, Any]:
     await require_admin_row(request, session)
     stmt = select(AuditLog).order_by(desc(AuditLog.ts)).limit(limit)
     if event:
@@ -31,15 +31,15 @@ async def list_audit(
     if since:
         stmt = stmt.where(AuditLog.ts >= since)
     rows = list((await session.execute(stmt)).scalars())
-    return [
+    entries = [
         {
-            "id": r.id,
-            "ts": r.ts.isoformat() if r.ts else None,
+            "t": r.ts.isoformat() if r.ts else None,
             "actor_type": r.actor_type,
-            "actor_id": r.actor_id,
+            "actor": str(r.actor_id) if r.actor_id is not None else "",
             "event": r.event,
-            "ip": r.ip,
-            "details": r.details,
+            "ip": r.ip or "",
+            "details": r.details or {},
         }
         for r in rows
     ]
+    return {"entries": entries, "total": len(entries)}
