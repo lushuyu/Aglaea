@@ -298,7 +298,7 @@ export interface RejectIncidentPayload {
 }
 
 export interface GenerateReportPayload {
-  focus?: string;
+  instruction?: string;
 }
 
 export interface CreateApiKeyPayload {

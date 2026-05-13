@@ -21,6 +21,7 @@ from aglaea.schemas.public import (
     PublicIncidentSkeleton,
     PublicService,
 )
+from aglaea.services.timeline import build_public_timeline
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -120,6 +121,11 @@ async def get_incident(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     incident, service = row
+    # CR-6 Path A: public timeline appears IFF the incident is published
+    # (`published_text IS NOT NULL AND published_at IS NOT NULL`). Skeleton
+    # responses keep `timeline: []` so PUBLIC_FIELDS_INCIDENT_SKELETON stays
+    # unchanged for v0.1.
+    timeline: list[dict[str, object]] = []
     if incident.published_text and incident.published_at:
         inc_payload: PublicIncidentPublished | PublicIncidentSkeleton = (
             PublicIncidentPublished(
@@ -133,6 +139,7 @@ async def get_incident(
                 published_at=incident.published_at,
             )
         )
+        timeline = list(await build_public_timeline(session, incident))
     else:
         inc_payload = PublicIncidentSkeleton(
             id=incident.id,
@@ -142,10 +149,7 @@ async def get_incident(
             resolved_at=incident.resolved_at,
             affected_subchecks=list(incident.affected_subchecks or []),
         )
-    # Timeline/similar are not yet computed server-side; return empty lists so
-    # the frontend's `incResp.similar?.map(...)` and timeline iterators are
-    # safe to use.
-    return {"incident": inc_payload, "timeline": [], "similar": []}
+    return {"incident": inc_payload, "timeline": timeline, "similar": []}
 
 
 @router.get("/claude-code/series/{metric}")

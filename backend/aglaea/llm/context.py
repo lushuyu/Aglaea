@@ -105,8 +105,17 @@ async def build_incident_context(
     service: Service,
     incident: Incident,
     reason: str,
+    admin_instruction: str | None = None,
 ) -> dict[str, Any]:
-    """Compose the full LLM-bound context dict for an incident."""
+    """Compose the full LLM-bound context dict for an incident.
+
+    `admin_instruction` (Option G, trusted slot) is an optional operator-authored
+    directive routed through the authenticated admin regenerate endpoint. When
+    present, it is sanitised via `_sanitise_user_text` (control-char strip +
+    truncation) and surfaced as `admin_instruction` in the returned dict for
+    `prompts.USER_TEMPLATE` to embed inside `<admin_directive>` — OUTSIDE
+    `<untrusted>`. Absent when no instruction was supplied.
+    """
     # Recent heartbeats during this incident window.
     hb_stmt = (
         select(HeartbeatEvent)
@@ -132,7 +141,7 @@ async def build_incident_context(
     )
     similar = list((await session.execute(sim_stmt)).scalars())
 
-    return {
+    out: dict[str, Any] = {
         "service": _service_view(service),
         "incident": _incident_view(incident),
         "heartbeats": [_heartbeat_view(h) for h in heartbeats],
@@ -140,3 +149,6 @@ async def build_incident_context(
         "trigger_reason": _sanitise_user_text(reason),
         "now": cutoff.isoformat(),
     }
+    if admin_instruction is not None:
+        out["admin_instruction"] = _sanitise_user_text(admin_instruction)
+    return out

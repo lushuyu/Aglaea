@@ -9,6 +9,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aglaea.db import get_session
+from aglaea.llm.context import _sanitise_user_text
 from aglaea.models.incidents import Incident, IncidentReportState, IncidentStatus
 from aglaea.routers._deps import client_ip, require_admin_row
 from aglaea.schemas.incident import (
@@ -17,6 +18,7 @@ from aglaea.schemas.incident import (
     IncidentReportEdit,
 )
 from aglaea.security.audit import audit
+from aglaea.services.timeline import build_admin_timeline
 from aglaea.workers.report_generator import ReportTrigger, enqueue_report_trigger
 
 router = APIRouter(prefix="/api/admin/incidents", tags=["admin-incidents"])
@@ -49,12 +51,14 @@ async def get_incident(
     row = await session.get(Incident, incident_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
-    # timeline / heartbeats / similar are not yet computed server-side, but the
-    # frontend (AdminIncidentResponse) expects them to be iterable. Return
-    # empty lists so destructuring `.map(...)` and `for...of` are safe.
+    # Timeline is derived at read-time from lifecycle + heartbeat transitions
+    # + audit events (admin variant). heartbeats / similar remain empty for
+    # v0.1 polish (plan §OOS — Phase 3 work). The frontend
+    # (AdminIncidentResponse) expects all three keys to be iterable.
+    timeline = await build_admin_timeline(session, row)
     return {
         "incident": IncidentAdminOut.model_validate(row),
-        "timeline": [],
+        "timeline": timeline,
         "heartbeats": [],
         "similar": [],
     }
@@ -73,7 +77,20 @@ async def regenerate(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
 
     # Manual regenerate maps to T0 priority (initial) so it wins over T2.
-    await enqueue_report_trigger(incident_id, ReportTrigger.INITIAL)
+    # CR-1: instruction travels through the `<admin_directive>` trusted slot.
+    # CR-5 / AC (c) Path A: audit row records the full sanitised text under the
+    # `instruction` key (SSOT — `None` means absent). Legacy `instruction_present`
+    # bool is dropped: `details->>'instruction' IS NULL` is the new predicate.
+    instruction_sanitised = (
+        _sanitise_user_text(payload.instruction)
+        if payload.instruction is not None
+        else None
+    )
+    await enqueue_report_trigger(
+        incident_id,
+        ReportTrigger.INITIAL,
+        instruction=instruction_sanitised,
+    )
     await audit(
         session,
         event="admin.incident.regenerate_requested",
@@ -82,7 +99,7 @@ async def regenerate(
         ip=client_ip(request),
         details={
             "incident_id": incident_id,
-            "instruction_present": payload.instruction is not None,
+            "instruction": instruction_sanitised,
         },
     )
     await session.commit()

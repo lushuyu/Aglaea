@@ -24,13 +24,28 @@ export default function AdminIncidentReviewPage() {
   const [activeTab, setActiveTab] = useState<Tab>("report");
   const [editedText, setEditedText] = useState<string>("");
   const [isDirty, setIsDirty] = useState(false);
-  const [regenFocus, setRegenFocus] = useState("");
+  const [regenInstruction, setRegenInstruction] = useState("");
   const [showRegenInput, setShowRegenInput] = useState(false);
+  // Regenerate burst-polling state. When regenerate is queued, we track:
+  //  - regenPendingSince: timestamp (ms) of the regen request (null when not pending).
+  //  - regenBaselineCount: report_generation_count captured at click time.
+  //  - regenBaselineText: report_text captured at click time (fallback signal).
+  // Burst window terminates when count increments past baseline, OR text changes
+  // (fallback), OR 30s safety cap elapses.
+  const [regenPendingSince, setRegenPendingSince] = useState<number | null>(
+    null
+  );
+  const [regenBaselineCount, setRegenBaselineCount] = useState<number | null>(
+    null
+  );
+  const [regenBaselineText, setRegenBaselineText] = useState<string | null>(
+    null
+  );
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-incident", id],
     queryFn: () => adminGetIncident(id),
-    refetchInterval: 15_000,
+    refetchInterval: regenPendingSince !== null ? 5_000 : 15_000,
   });
 
   // Seed editor with draft text on first load
@@ -63,20 +78,71 @@ export default function AdminIncidentReviewPage() {
   });
 
   const regenMutation = useMutation({
-    mutationFn: () =>
-      adminRegenerateReport(id, {
-        focus: regenFocus || undefined,
-      }),
+    mutationFn: () => {
+      // Capture baselines BEFORE the request flies so the burst-poll can
+      // detect when the worker's new draft lands.
+      setRegenBaselineCount(data?.incident.report_generation_count ?? null);
+      setRegenBaselineText(data?.incident.report_text ?? null);
+      return adminRegenerateReport(id, {
+        instruction: regenInstruction || undefined,
+      });
+    },
     onSuccess: (resp) => {
       void queryClient.invalidateQueries({
         queryKey: ["admin-incident", id],
       });
       setEditedText(resp.incident.report_text ?? "");
       setIsDirty(false);
-      setShowRegenInput(false);
-      setRegenFocus("");
+      setRegenInstruction("");
+      // Open the burst-poll window. Dialog stays mounted so the chip is visible.
+      setRegenPendingSince(Date.now());
+    },
+    onError: () => {
+      // Keep the dialog open so the user can read the error and retry.
+      // No baseline cleanup needed — regenPendingSince is still null.
+      setRegenBaselineCount(null);
+      setRegenBaselineText(null);
     },
   });
+
+  // Close the burst-poll window once the worker's new draft is observable, or
+  // after the 30s safety cap elapses (covers the silent-DeepSeek-failure case).
+  useEffect(() => {
+    if (regenPendingSince === null) return;
+    const currentCount = data?.incident.report_generation_count ?? null;
+    const currentText = data?.incident.report_text ?? null;
+    const countAdvanced =
+      regenBaselineCount !== null &&
+      currentCount !== null &&
+      currentCount > regenBaselineCount;
+    const textChanged =
+      regenBaselineText !== null &&
+      currentText !== null &&
+      currentText !== regenBaselineText;
+    if (countAdvanced || textChanged) {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+      setRegenBaselineText(null);
+      return;
+    }
+    const elapsed = Date.now() - regenPendingSince;
+    const remaining = 30_000 - elapsed;
+    if (remaining <= 0) {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+      setRegenBaselineText(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+      setRegenBaselineText(null);
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [regenPendingSince, regenBaselineCount, regenBaselineText, data]);
+
+  const regenChipVisible =
+    regenMutation.isPending || regenPendingSince !== null;
 
   if (isLoading) {
     return (
@@ -287,9 +353,9 @@ export default function AdminIncidentReviewPage() {
         >
           <input
             type="text"
-            placeholder="Focus hint (optional)"
-            value={regenFocus}
-            onChange={(e) => setRegenFocus(e.target.value)}
+            placeholder="Instruction (optional) — e.g., 'focus on the moomoo subcheck timeline'"
+            value={regenInstruction}
+            onChange={(e) => setRegenInstruction(e.target.value)}
             style={{
               flex: 1,
               background: "var(--bg-0)",
@@ -318,6 +384,22 @@ export default function AdminIncidentReviewPage() {
           >
             {regenMutation.isPending ? "Generating…" : "Generate"}
           </button>
+          {regenChipVisible && (
+            <span
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                color: "var(--accent)",
+                padding: "3px 10px",
+                borderRadius: 999,
+                background: "color-mix(in oklch, var(--accent) 12%, transparent)",
+                border: "1px solid var(--accent-line)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Queued — refreshing
+            </span>
+          )}
         </div>
       )}
 
@@ -334,6 +416,22 @@ export default function AdminIncidentReviewPage() {
           }}
         >
           {((publishMutation.error ?? rejectMutation.error) as Error).message}
+        </div>
+      )}
+
+      {regenMutation.isError && (
+        <div
+          style={{
+            marginBottom: 16,
+            padding: "8px 12px",
+            background: "var(--down-soft)",
+            border: "1px solid var(--down-line)",
+            borderRadius: "var(--radius)",
+            fontSize: 12,
+            color: "var(--down)",
+          }}
+        >
+          Regenerate failed: {(regenMutation.error as Error).message}
         </div>
       )}
 

@@ -67,31 +67,55 @@ class ReportTrigger(enum.Enum):
 
 # Per-incident pending trigger queue (in-memory; re-derived on startup).
 _pending: dict[int, list[ReportTrigger]] = defaultdict(list)
+# Per-incident pending admin instruction (in-memory; absence is meaningful).
+# Last-write-wins under the same lock as `_pending`. Drained atomically by
+# `_drain_one`. NOT a defaultdict — `dict.pop(_, None)` distinguishes "no
+# instruction supplied" from "instruction was empty string".
+_pending_instructions: dict[int, str | None] = {}
 _pending_lock = asyncio.Lock()
 
 
-async def enqueue_report_trigger(incident_id: int, trigger: ReportTrigger) -> None:
-    """Used by incident_detector to enqueue a coalescing trigger."""
+async def enqueue_report_trigger(
+    incident_id: int,
+    trigger: ReportTrigger,
+    *,
+    instruction: str | None = None,
+) -> None:
+    """Used by incident_detector and the admin regenerate handler to enqueue a
+    coalescing trigger. `instruction` is the optional admin-authored directive
+    that travels through `<admin_directive>` (trusted slot, Option G).
+    Last-write-wins per incident.
+    """
     async with _pending_lock:
         _pending[incident_id].append(trigger)
+        if instruction is not None:
+            _pending_instructions[incident_id] = instruction
     log.info(
         "report.trigger.enqueued",
-        extra={"incident_id": incident_id, "trigger": trigger.name},
+        extra={
+            "incident_id": incident_id,
+            "trigger": trigger.name,
+            "instruction_len": len(instruction) if instruction is not None else 0,
+        },
     )
 
 
-async def _drain_one() -> tuple[int, ReportTrigger] | None:
-    """Pop one (incident_id, highest-priority-trigger) pair, or None if empty."""
+async def _drain_one() -> tuple[int, ReportTrigger, str | None] | None:
+    """Pop one (incident_id, highest-priority-trigger, instruction) tuple,
+    or None if empty. The instruction is drained atomically with the trigger
+    list under `_pending_lock` to avoid leak-on-abort races.
+    """
     async with _pending_lock:
         if not _pending:
             return None
         # Pick a deterministic incident.
         incident_id = next(iter(_pending.keys()))
         triggers = _pending.pop(incident_id)
+        instruction = _pending_instructions.pop(incident_id, None)
     chosen = ReportTrigger.pick(triggers)
     if chosen is None:
         return None
-    return incident_id, chosen
+    return incident_id, chosen, instruction
 
 
 async def _scan_periodic_re_derivation(session: AsyncSession) -> None:
@@ -115,12 +139,18 @@ async def run_trigger(
     *,
     incident_id: int,
     reason: ReportTrigger,
+    instruction: str | None = None,
 ) -> None:
     """Generate (or skip) a draft for one incident.
 
     Runtime assertion (AC1.12 strengthened): T1 must NEVER reach this site.
     A future contributor who accidentally enqueues T1 trips a loud failure
     rather than a silent extra LLM call.
+
+    `instruction` (Option G, trusted slot) is the optional admin-authored
+    directive forwarded into `build_incident_context(..., admin_instruction=...)`
+    so it lands in the `<admin_directive>` slot of `USER_TEMPLATE` (outside
+    `<untrusted>`).
     """
     assert reason != ReportTrigger.SUBCHECK_CHANGED, (
         "T1 dropped in v0.1 per C38 — enum value reserved but never fired"
@@ -169,6 +199,7 @@ async def run_trigger(
         service=service,
         incident=incident,
         reason=reason.name,
+        admin_instruction=instruction,
     )
     messages = build_messages(context)
 
@@ -220,12 +251,17 @@ async def report_generator_loop() -> None:
         await _scan_periodic_re_derivation(session)
 
     async def _body() -> None:
-        pair = await _drain_one()
-        if pair is None:
+        item = await _drain_one()
+        if item is None:
             return
-        incident_id, reason = pair
+        incident_id, reason, instruction = item
         async with session_scope() as session:
-            await run_trigger(session, incident_id=incident_id, reason=reason)
+            await run_trigger(
+                session,
+                incident_id=incident_id,
+                reason=reason,
+                instruction=instruction,
+            )
 
     await worker_loop(
         "report_generator",
