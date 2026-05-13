@@ -39,26 +39,34 @@ async def list_incidents(
     return {"incidents": [IncidentAdminOut.model_validate(r) for r in rows]}
 
 
-@router.get("/{incident_id}", response_model=IncidentAdminOut)
+@router.get("/{incident_id}")
 async def get_incident(
     incident_id: int,
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> IncidentAdminOut:
+) -> dict[str, object]:
     await require_admin_row(request, session)
     row = await session.get(Incident, incident_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
-    return IncidentAdminOut.model_validate(row)
+    # timeline / heartbeats / similar are not yet computed server-side, but the
+    # frontend (AdminIncidentResponse) expects them to be iterable. Return
+    # empty lists so destructuring `.map(...)` and `for...of` are safe.
+    return {
+        "incident": IncidentAdminOut.model_validate(row),
+        "timeline": [],
+        "heartbeats": [],
+        "similar": [],
+    }
 
 
-@router.post("/{incident_id}/regenerate", response_model=IncidentAdminOut)
+@router.post("/{incident_id}/regenerate")
 async def regenerate(
     incident_id: int,
     payload: IncidentRegenerateRequest,
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> IncidentAdminOut:
+) -> dict[str, IncidentAdminOut]:
     admin = await require_admin_row(request, session)
     row = await session.get(Incident, incident_id)
     if row is None:
@@ -78,15 +86,15 @@ async def regenerate(
         },
     )
     await session.commit()
-    return IncidentAdminOut.model_validate(row)
+    return {"incident": IncidentAdminOut.model_validate(row)}
 
 
-@router.post("/{incident_id}/publish", response_model=IncidentAdminOut)
+@router.post("/{incident_id}/publish")
 async def publish(
     incident_id: int,
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> IncidentAdminOut:
+) -> dict[str, IncidentAdminOut]:
     admin = await require_admin_row(request, session)
     row = await session.get(Incident, incident_id)
     if row is None:
@@ -112,15 +120,15 @@ async def publish(
         details={"incident_id": incident_id},
     )
     await session.commit()
-    return IncidentAdminOut.model_validate(row)
+    return {"incident": IncidentAdminOut.model_validate(row)}
 
 
-@router.post("/{incident_id}/reject", response_model=IncidentAdminOut)
+@router.post("/{incident_id}/reject")
 async def reject(
     incident_id: int,
     request: Request,
     session: AsyncSession = Depends(get_session),
-) -> IncidentAdminOut:
+) -> dict[str, IncidentAdminOut]:
     admin = await require_admin_row(request, session)
     row = await session.get(Incident, incident_id)
     if row is None:
@@ -136,7 +144,7 @@ async def reject(
         details={"incident_id": incident_id},
     )
     await session.commit()
-    return IncidentAdminOut.model_validate(row)
+    return {"incident": IncidentAdminOut.model_validate(row)}
 
 
 @router.patch("/{incident_id}/report", response_model=IncidentAdminOut)
