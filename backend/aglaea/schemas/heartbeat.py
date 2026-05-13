@@ -30,4 +30,6 @@ class HeartbeatIn(BaseModel):
     subchecks: dict[str, SubcheckIn] | None = Field(default=None)
     metrics: dict[str, str | int | float | bool | None] | None = Field(default=None)
     message: str | None = Field(default=None, max_length=2000)
-    client_ts: datetime | None = Field(default=None)
+    # client_ts comes over JSON as an ISO8601 string; allow lax parsing of that
+    # one field even though the model is strict elsewhere.
+    client_ts: datetime | None = Field(default=None, strict=False)
