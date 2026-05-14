@@ -5,9 +5,22 @@ import Breadcrumb from "@/components/Breadcrumb";
 import StatusBadge from "@/components/StatusBadge";
 import Swimlane from "@/components/Swimlane";
 import { fmtTime, fmtDuration } from "@/lib/fmt";
-import type { SwimlaneData, SwimlaneSegment } from "@/types/api";
+import { formatDistanceToNow } from "date-fns";
+import type {
+  SwimlaneData,
+  SwimlaneSegment,
+  PublicIncidentUpdate,
+  PublicIncidentPublished,
+  PublicIncidentSkeleton,
+} from "@/types/api";
 
 export const revalidate = 30;
+
+function isPublished(
+  inc: PublicIncidentPublished | PublicIncidentSkeleton
+): inc is PublicIncidentPublished {
+  return "updates" in inc;
+}
 
 interface Props {
   params: Promise<{ slug: string; id: string }>;
@@ -16,22 +29,12 @@ interface Props {
 export default async function PublicIncidentDetail({ params }: Props) {
   const { slug, id } = await params;
 
-  let svcResp;
-  try {
-    svcResp = await getPublicService(slug);
-  } catch {
-    notFound();
-  }
-
-  let incResp;
-  try {
-    incResp = await getPublicIncident(slug, id);
-  } catch {
-    notFound();
-  }
+  const svcResp = await getPublicService(slug).catch(() => notFound());
+  const incResp = await getPublicIncident(slug, id).catch(() => notFound());
 
   const svc = svcResp.service;
   const { incident, timeline } = incResp;
+  const published = isPublished(incident) ? incident : null;
 
   // Build swimlane data from timeline events
   const laneMap = new Map<string, SwimlaneSegment[]>();
@@ -118,8 +121,141 @@ export default async function PublicIncidentDetail({ params }: Props) {
           </div>
         </div>
 
-        {/* Published report */}
-        {incident.published_text && (
+        {/* Summary block (published path) */}
+        {published && published.summary && (
+          <div style={{ marginBottom: 40 }}>
+            <div className="section-hd" style={{ marginBottom: 12 }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 16,
+                  color: "var(--fg-1)",
+                }}
+              >
+                Summary
+              </span>
+              <StatusBadge lifecycle={published.lifecycle_state} size="sm" />
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 15,
+                color: "var(--fg-1)",
+                lineHeight: 1.7,
+                whiteSpace: "pre-wrap",
+              }}
+            >
+              {published.summary}
+            </p>
+          </div>
+        )}
+
+        {/* Updates timeline (published path — ASC chronological) */}
+        {published && published.updates.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div className="section-hd" style={{ marginBottom: 16 }}>
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 16,
+                  color: "var(--fg-1)",
+                }}
+              >
+                Updates
+              </span>
+            </div>
+            <div>
+              {published.updates.map((upd: PublicIncidentUpdate) => {
+                const absTime = new Date(upd.t).toLocaleString();
+                const relTime = formatDistanceToNow(new Date(upd.t), {
+                  addSuffix: true,
+                });
+                const kindColors: Record<
+                  PublicIncidentUpdate["kind"],
+                  { background: string; color: string; border: string }
+                > = {
+                  state_transition: {
+                    background:
+                      "color-mix(in oklch, var(--info, #3b82f6) 12%, transparent)",
+                    color: "var(--info, #2563eb)",
+                    border:
+                      "1px solid color-mix(in oklch, var(--info, #3b82f6) 28%, transparent)",
+                  },
+                  summary_update: {
+                    background: "var(--bg-2)",
+                    color: "var(--fg-3)",
+                    border: "1px solid var(--line-2)",
+                  },
+                  manual: {
+                    background:
+                      "color-mix(in oklch, var(--accent) 12%, transparent)",
+                    color: "var(--accent)",
+                    border: "1px solid var(--accent-line)",
+                  },
+                };
+                return (
+                  <div
+                    key={upd.id}
+                    style={{
+                      display: "flex",
+                      gap: 16,
+                      alignItems: "flex-start",
+                      paddingBottom: 16,
+                      marginBottom: 16,
+                      borderBottom: "1px solid var(--line-1)",
+                    }}
+                  >
+                    <span
+                      title={absTime}
+                      style={{
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 11,
+                        color: "var(--fg-3)",
+                        whiteSpace: "nowrap",
+                        minWidth: 110,
+                        paddingTop: 3,
+                      }}
+                    >
+                      {relTime}
+                    </span>
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        fontFamily: "var(--font-mono)",
+                        fontSize: 10,
+                        padding: "2px 7px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap",
+                        alignSelf: "flex-start",
+                        paddingTop: 3,
+                        ...kindColors[upd.kind],
+                      }}
+                    >
+                      {upd.kind.replace("_", " ")}
+                    </span>
+                    <span
+                      style={{
+                        flex: 1,
+                        fontSize: 14,
+                        color: "var(--fg-1)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {upd.text ??
+                        (upd.kind === "state_transition"
+                          ? "(state transition)"
+                          : "(no text)")}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Fallback: skeleton path — show published_text if present */}
+        {!published && incident.published_text && (
           <div style={{ marginBottom: 48 }}>
             <div className="section-hd" style={{ marginBottom: 20 }}>
               <span
@@ -145,7 +281,7 @@ export default async function PublicIncidentDetail({ params }: Props) {
             </div>
             <div className="incident-prose">
               {incident.published_text.split("\n").map((line, i) => (
-                <p key={i}>{line || <br />}</p>
+                <p key={i}>{line ? line : <br />}</p>
               ))}
             </div>
           </div>

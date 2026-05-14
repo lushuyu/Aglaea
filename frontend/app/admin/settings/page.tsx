@@ -16,13 +16,13 @@ export default function AdminSettingsPage() {
 
         <div className="settings-row">
           <div>
-            <div style={{ fontSize: 14, color: "var(--fg-0)", marginBottom: 2 }}>
+            <div style={{ fontSize: 16, color: "var(--fg-0)", marginBottom: 2 }}>
               Server time (SGT)
             </div>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: 16,
                 color: "var(--fg-3)",
               }}
             >
@@ -32,7 +32,7 @@ export default function AdminSettingsPage() {
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 13,
+              fontSize: 15,
               color: "var(--accent)",
             }}
           >
@@ -42,13 +42,13 @@ export default function AdminSettingsPage() {
 
         <div className="settings-row">
           <div>
-            <div style={{ fontSize: 14, color: "var(--fg-0)", marginBottom: 2 }}>
+            <div style={{ fontSize: 16, color: "var(--fg-0)", marginBottom: 2 }}>
               Report revalidation
             </div>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: 16,
                 color: "var(--fg-3)",
               }}
             >
@@ -58,7 +58,7 @@ export default function AdminSettingsPage() {
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: 16,
               color: "var(--fg-3)",
             }}
           >
@@ -73,13 +73,13 @@ export default function AdminSettingsPage() {
         </h2>
         <div className="settings-row">
           <div>
-            <div style={{ fontSize: 14, color: "var(--fg-0)", marginBottom: 2 }}>
+            <div style={{ fontSize: 16, color: "var(--fg-0)", marginBottom: 2 }}>
               GitHub OAuth
             </div>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: 16,
                 color: "var(--fg-3)",
               }}
             >
@@ -91,7 +91,7 @@ export default function AdminSettingsPage() {
             href="/api/auth/github/login"
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: 16,
               color: "var(--accent)",
               textDecoration: "none",
             }}
@@ -101,13 +101,13 @@ export default function AdminSettingsPage() {
         </div>
         <div className="settings-row">
           <div>
-            <div style={{ fontSize: 14, color: "var(--fg-0)", marginBottom: 2 }}>
+            <div style={{ fontSize: 16, color: "var(--fg-0)", marginBottom: 2 }}>
               Session cookie
             </div>
             <div
               style={{
                 fontFamily: "var(--font-mono)",
-                fontSize: 12,
+                fontSize: 16,
                 color: "var(--fg-3)",
               }}
             >
@@ -117,7 +117,7 @@ export default function AdminSettingsPage() {
         </div>
         <div className="settings-row">
           <div>
-            <div style={{ fontSize: 14, color: "var(--fg-0)", marginBottom: 2 }}>
+            <div style={{ fontSize: 16, color: "var(--fg-0)", marginBottom: 2 }}>
               Sign out
             </div>
           </div>
@@ -125,7 +125,7 @@ export default function AdminSettingsPage() {
             href="/api/auth/logout"
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: 16,
               color: "var(--down)",
               textDecoration: "none",
             }}
@@ -140,11 +140,11 @@ export default function AdminSettingsPage() {
           About
         </h2>
         <div className="settings-row">
-          <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Version</span>
+          <span style={{ fontSize: 15, color: "var(--fg-2)" }}>Version</span>
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: 16,
               color: "var(--fg-3)",
             }}
           >
@@ -152,11 +152,11 @@ export default function AdminSettingsPage() {
           </span>
         </div>
         <div className="settings-row">
-          <span style={{ fontSize: 13, color: "var(--fg-2)" }}>Frontend</span>
+          <span style={{ fontSize: 15, color: "var(--fg-2)" }}>Frontend</span>
           <span
             style={{
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: 16,
               color: "var(--fg-3)",
             }}
           >

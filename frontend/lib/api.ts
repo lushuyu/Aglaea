@@ -25,6 +25,13 @@ import type {
   PublicService,
   Service,
   Incident,
+  IncidentUpdate,
+  IncidentAdminOut,
+  PublicActiveIncidentsResponse,
+  PublicIncidentPublished,
+  PublicIncidentSkeleton,
+  PublicUptimeResponse,
+  UptimeDay,
 } from "@/types/api";
 
 // ── Base URL resolution ────────────────────────────────────────────────────
@@ -285,4 +292,58 @@ export async function adminRevokeApiKey(
     throw new Error(`API error ${res.status}: ${res.statusText}`);
   }
   return;
+}
+
+/** POST /api/admin/incidents/:id/updates — insert a manual update entry */
+export async function adminAddIncidentUpdate(
+  id: number,
+  body: { text: string }
+): Promise<IncidentUpdate> {
+  return apiFetch<IncidentUpdate>(
+    `${adminBase()}/api/admin/incidents/${encodeURIComponent(String(id))}/updates`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: body.text, kind: "manual" }),
+      credentials: "include",
+    }
+  );
+}
+
+/** PATCH /api/admin/incidents/:id/summary — update the incident summary */
+export async function adminEditIncidentSummary(
+  id: number,
+  summary: string
+): Promise<IncidentAdminOut> {
+  return apiFetch<IncidentAdminOut>(
+    `${adminBase()}/api/admin/incidents/${encodeURIComponent(String(id))}/summary`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary }),
+      credentials: "include",
+    }
+  );
+}
+
+/** GET /api/public/services/:slug/uptime?days=30 — 30-day daily uptime strip */
+export async function getPublicUptime(
+  slug: string,
+  days: number = 30
+): Promise<{ days: UptimeDay[] }> {
+  return apiFetch<PublicUptimeResponse>(
+    `${internalBase()}/api/public/services/${encodeURIComponent(slug)}/uptime?days=${days}`,
+    { next: { revalidate: 300 } }
+  );
+}
+
+/** GET /api/public/services/:slug/incidents/active — active incidents for a service */
+export async function getPublicActiveIncidents(
+  slug: string
+): Promise<{ incidents: (PublicIncidentPublished | PublicIncidentSkeleton)[] }> {
+  const data = await apiFetch<PublicActiveIncidentsResponse>(
+    `${internalBase()}/api/public/services/${encodeURIComponent(slug)}/incidents/active`,
+    { next: { revalidate: 30 } }
+  );
+  return data;
 }

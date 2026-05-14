@@ -86,6 +86,97 @@ export interface HeartbeatEvent {
   client_ts?: string;
 }
 
+// ── LifecycleState ─────────────────────────────────────────────────────────
+export type LifecycleState =
+  | "investigating"
+  | "identified"
+  | "monitoring"
+  | "resolved";
+
+// ── IncidentUpdate ─────────────────────────────────────────────────────────
+/** Admin shape — matches backend IncidentUpdateOut */
+export interface IncidentUpdate {
+  id: number;
+  incident_id: number;
+  t: string;
+  kind: "state_transition" | "summary_update" | "manual";
+  text: string | null;
+  status_snapshot: object | null;
+  author_id: number | null;
+  audit_event_id: number | null;
+}
+
+/** Public shape — subset of IncidentUpdate without author/audit fields */
+export interface PublicIncidentUpdate {
+  id: number;
+  incident_id: number;
+  t: string;
+  kind: "state_transition" | "summary_update" | "manual";
+  text: string | null;
+  status_snapshot: object | null;
+}
+
+// ── Admin incident extended shape ─────────────────────────────────────────
+/** Extended incident returned by GET /api/admin/incidents/:id */
+export interface IncidentAdminOut {
+  id: number;
+  service_slug: string;
+  status: IncidentStatus;
+  started_at: string;
+  resolved_at?: string | null;
+  affected_subchecks: string[];
+  report_state: ReportState;
+  report_text?: string | null;
+  report_generated_at?: string | null;
+  report_generation_count: number;
+  report_generation_reason?: string | null;
+  published_text?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  similar_ids?: number[];
+  /** Phase 2d: Statuspage-style summary */
+  summary: string | null;
+  /** Phase 2d: lifecycle state */
+  lifecycle_state: LifecycleState;
+  /** Phase 2d: reverse-chronological update log */
+  updates: IncidentUpdate[];
+}
+
+// ── Public incident shapes ─────────────────────────────────────────────────
+/** Published public incident — has summary and updates */
+export interface PublicIncidentPublished {
+  id: number;
+  service_slug: string;
+  status: IncidentStatus;
+  started_at: string;
+  resolved_at?: string | null;
+  affected_subchecks: string[];
+  report_state: ReportState;
+  published_text?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  similar_ids?: number[];
+  summary: string | null;
+  lifecycle_state: LifecycleState;
+  updates: PublicIncidentUpdate[];
+}
+
+/** Skeleton public incident — unpublished, no summary/updates */
+export interface PublicIncidentSkeleton {
+  id: number;
+  service_slug: string;
+  status: IncidentStatus;
+  started_at: string;
+  resolved_at?: string | null;
+  affected_subchecks: string[];
+  report_state: ReportState;
+  published_text?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  similar_ids?: number[];
+  lifecycle_state: LifecycleState;
+}
+
 // ── Incident ───────────────────────────────────────────────────────────────
 export interface Incident {
   id: number;
@@ -214,6 +305,16 @@ export interface ClaudeCodeMetrics {
   by_host?: Record<string, HostMetrics>;
 }
 
+// ── Uptime strip ───────────────────────────────────────────────────────────
+export interface UptimeDay {
+  date: string;
+  status: "ok" | "degraded" | "down" | "unknown";
+}
+
+export interface PublicUptimeResponse {
+  days: UptimeDay[];
+}
+
 // ── Public API response shapes ─────────────────────────────────────────────
 export interface PublicServicesResponse {
   services: PublicService[];
@@ -228,7 +329,7 @@ export interface PublicIncidentHistoryResponse {
 }
 
 export interface PublicIncidentResponse {
-  incident: Incident;
+  incident: PublicIncidentPublished | PublicIncidentSkeleton;
   timeline: TimelineEvent[];
   similar?: Incident[];
 }
@@ -253,7 +354,7 @@ export interface AdminIncidentsResponse {
 }
 
 export interface AdminIncidentResponse {
-  incident: Incident;
+  incident: IncidentAdminOut;
   timeline: TimelineEvent[];
   heartbeats: HeartbeatEvent[];
   similar: Array<{
@@ -262,6 +363,10 @@ export interface AdminIncidentResponse {
     duration_min: number;
     summary: string;
   }>;
+}
+
+export interface PublicActiveIncidentsResponse {
+  incidents: (PublicIncidentPublished | PublicIncidentSkeleton)[];
 }
 
 export interface AdminAuditResponse {

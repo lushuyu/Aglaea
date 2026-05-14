@@ -21,7 +21,7 @@
 .glance-tile.tone-down { border-left-color: var(--down); }
 .glance-tile.clickable { cursor: default; }
 .glance-tile.clickable:hover { background: var(--bg-2); border-color: var(--line-3); }
-.glance-value { font-size: 36px; line-height: 1.1; color: var(--fg-0); margin-top: 6px; }
+.glance-value { font-size: 41px; line-height: 1.1; color: var(--fg-0); margin-top: 6px; }
 .tone-down .glance-value { color: var(--down); }
 .tone-degraded .glance-value { color: var(--degraded); }
 

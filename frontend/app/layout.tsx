@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SonnerProvider } from "@/lib/sonner";
 
 export const metadata: Metadata = {
   title: "Aglaea — status & signal",
@@ -17,7 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <SonnerProvider />
+      </body>
     </html>
   );
 }

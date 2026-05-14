@@ -22,7 +22,7 @@ export default function AdminIncidentsPage() {
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 12,
+            fontSize: 16,
             color: "var(--fg-3)",
           }}
         >
@@ -34,7 +34,7 @@ export default function AdminIncidentsPage() {
         <div
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 12,
+            fontSize: 16,
             color: "var(--fg-3)",
             padding: "32px 0",
           }}
@@ -47,7 +47,7 @@ export default function AdminIncidentsPage() {
         <div
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 12,
+            fontSize: 16,
             color: "var(--fg-3)",
             padding: "32px 0",
           }}
@@ -76,7 +76,7 @@ export default function AdminIncidentsPage() {
                 <td
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 12,
+                    fontSize: 16,
                     color: "var(--fg-3)",
                   }}
                 >
@@ -85,7 +85,7 @@ export default function AdminIncidentsPage() {
                 <td
                   style={{
                     fontFamily: "var(--font-mono)",
-                    fontSize: 12,
+                    fontSize: 16,
                     color: "var(--fg-1)",
                   }}
                 >
@@ -119,7 +119,7 @@ export default function AdminIncidentsPage() {
                 </td>
                 <td
                   style={{
-                    fontSize: 12,
+                    fontSize: 16,
                     color: "var(--fg-2)",
                     maxWidth: 200,
                     overflow: "hidden",

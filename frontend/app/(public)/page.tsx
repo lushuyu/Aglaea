@@ -1,8 +1,11 @@
-import { getPublicServices } from "@/lib/api";
+import Link from "next/link";
+import { getPublicServices, getPublicActiveIncidents, getPublicUptime } from "@/lib/api";
 import StatusBanner from "@/components/StatusBanner";
 import StatusBadge from "@/components/StatusBadge";
 import SubcheckStrip from "@/components/SubcheckStrip";
-import type { PublicService, ServiceStatus } from "@/types/api";
+import UptimeStrip from "@/components/UptimeStrip";
+import { formatDistanceToNow } from "date-fns";
+import type { PublicService, ServiceStatus, PublicIncidentPublished, UptimeDay } from "@/types/api";
 
 export const revalidate = 30;
 
@@ -30,34 +33,173 @@ export default async function PublicOverview() {
 
   const overall = overallStatus(services);
 
+  // Fetch active incidents for services that appear degraded/down
+  const nonOkServices = services.filter(
+    (s) => s.last_status !== "ok" && s.last_status !== null
+  );
+
+  type ActiveRow = {
+    slug: string;
+    displayName: string;
+    incident: PublicIncidentPublished;
+  };
+
+  const activeRows: ActiveRow[] = [];
+  // Fetch uptime for all services in parallel with incident data
+  const [, uptimeResults] = await Promise.all([
+    Promise.all(
+      nonOkServices.map(async (svc) => {
+        try {
+          const resp = await getPublicActiveIncidents(svc.slug);
+          const published = resp.incidents.find(
+            (inc): inc is PublicIncidentPublished =>
+              "summary" in inc && inc.lifecycle_state !== "resolved"
+          );
+          if (published) {
+            activeRows.push({
+              slug: svc.slug,
+              displayName: svc.display_name,
+              incident: published,
+            });
+          }
+        } catch {
+          // service may have no active incidents endpoint — skip silently
+        }
+      })
+    ),
+    Promise.all(
+      services.map(async (svc) => {
+        try {
+          const resp = await getPublicUptime(svc.slug, 30);
+          return { slug: svc.slug, days: resp.days };
+        } catch {
+          return { slug: svc.slug, days: [] as UptimeDay[] };
+        }
+      })
+    ),
+  ]);
+
+  const uptimeBySlug = new Map(uptimeResults.map((r) => [r.slug, r.days]));
+
   return (
     <div className="container">
       <div style={{ paddingTop: 32, paddingBottom: 40 }}>
         <StatusBanner status={overall} title={STATUS_LABEL[overall]} />
       </div>
 
-      <div className="section-hd">
-        <span
+      {/* Active Incidents card */}
+      {activeRows.length > 0 && (
+        <div
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: 18,
-            color: "var(--fg-1)",
+            marginBottom: 36,
+            padding: "20px 24px",
+            background: "var(--bg-1)",
+            border: "1px solid var(--line-2)",
+            borderRadius: "var(--radius-md)",
           }}
         >
-          Services
-        </span>
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 11,
-            color: "var(--fg-3)",
-          }}
-        >
-          {services.length} monitored
-        </span>
-      </div>
+          <h2
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: 16,
+              fontWeight: 500,
+              color: "var(--fg-0)",
+              margin: "0 0 16px 0",
+            }}
+          >
+            Active Incidents
+          </h2>
+          <div>
+            {activeRows.map(({ slug, displayName, incident }) => {
+              const summary = incident.summary ?? "";
+              const truncated =
+                summary.length > 200
+                  ? summary.slice(0, 200) + "…"
+                  : summary;
+              const relTime = formatDistanceToNow(
+                new Date(incident.started_at),
+                { addSuffix: true }
+              );
+              return (
+                <div
+                  key={incident.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16,
+                    paddingBottom: 14,
+                    marginBottom: 14,
+                    borderBottom: "1px solid var(--line-1)",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        marginBottom: 4,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: "var(--font-serif)",
+                          fontSize: 14,
+                          color: "var(--fg-0)",
+                        }}
+                      >
+                        {displayName}
+                      </span>
+                      <StatusBadge
+                        lifecycle={incident.lifecycle_state}
+                        size="sm"
+                      />
+                      <span
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 11,
+                          color: "var(--fg-3)",
+                        }}
+                      >
+                        since {relTime}
+                      </span>
+                    </div>
+                    {truncated && (
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: 13,
+                          color: "var(--fg-2)",
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {truncated}
+                      </p>
+                    )}
+                  </div>
+                  <Link
+                    href={`/services/${slug}/incidents/${incident.id}`}
+                    style={{
+                      flexShrink: 0,
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "var(--accent)",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                      paddingTop: 2,
+                    }}
+                  >
+                    View incident
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
-      <div className="services-list" style={{ marginTop: 8 }}>
+      <div className="services-list">
         {services.length === 0 && (
           <div
             style={{
@@ -65,50 +207,65 @@ export default async function PublicOverview() {
               textAlign: "center",
               color: "var(--fg-3)",
               fontFamily: "var(--font-mono)",
-              fontSize: 13,
+              fontSize: 15,
             }}
           >
             No services configured
           </div>
         )}
-        {services.map((svc) => (
-          <div key={svc.slug} className="service-row">
-            <div className="service-row-left">
-              <div>
-                <div
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: 16,
-                    color: "var(--fg-0)",
-                  }}
-                >
-                  {svc.display_name}
-                </div>
-                {svc.description && (
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--fg-3)",
-                      marginTop: 2,
-                    }}
-                  >
-                    {svc.description}
+        {services.map((svc) => {
+          const uptimeDays = uptimeBySlug.get(svc.slug) ?? [];
+          return (
+            <Link
+              key={svc.slug}
+              href={`/services/${svc.slug}`}
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              <div className="service-row">
+                <div className="service-row-left">
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: "var(--font-serif)",
+                        fontSize: 16,
+                        color: "var(--fg-0)",
+                      }}
+                    >
+                      {svc.display_name}
+                    </div>
+                    {svc.description && (
+                      <div
+                        style={{
+                          fontSize: 16,
+                          color: "var(--fg-3)",
+                          marginTop: 2,
+                        }}
+                      >
+                        {svc.description}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+
+                <div className="service-row-uptime">
+                  {uptimeDays.length > 0 && (
+                    <UptimeStrip days={uptimeDays} />
+                  )}
+                </div>
+
+                <div className="service-row-mid">
+                  {svc.last_subchecks && Object.keys(svc.last_subchecks).length > 0 && (
+                    <SubcheckStrip subchecks={svc.last_subchecks} />
+                  )}
+                </div>
+
+                <div className="service-row-right">
+                  <StatusBadge status={svc.last_status ?? "unknown"} size="sm" />
+                </div>
               </div>
-            </div>
-
-            <div className="service-row-mid">
-              {svc.last_subchecks && Object.keys(svc.last_subchecks).length > 0 && (
-                <SubcheckStrip subchecks={svc.last_subchecks} />
-              )}
-            </div>
-
-            <div className="service-row-right">
-              <StatusBadge status={svc.last_status ?? "unknown"} size="sm" />
-            </div>
-          </div>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

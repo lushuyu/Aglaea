@@ -3,23 +3,53 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminCreateService } from "@/lib/api";
+import { serviceCreateSchema, type ServiceCreateValues } from "@/lib/schemas/service";
 import type { CreateServicePayload, ServiceKind } from "@/types/api";
+
+// Extra fields not covered by the core zod schema
+type ExtraFields = {
+  description: string;
+  kind: ServiceKind;
+  glyph: string;
+  deepseek_context: string;
+  probe_url: string;
+  probe_interval_seconds: number;
+  probe_expected_status: number;
+};
 
 export default function AdminNewServicePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [form, setForm] = useState<CreateServicePayload>({
-    display_name: "",
-    slug: "",
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ServiceCreateValues>({
+    resolver: zodResolver(serviceCreateSchema),
+    defaultValues: {
+      slug: "",
+      display_name: "",
+      public_visible: true,
+      expected_interval_seconds: 300,
+    },
+  });
+
+  // Extra fields outside the zod schema (kind, glyph, etc.)
+  const [extra, setExtra] = useState<ExtraFields>({
     description: "",
     kind: "push",
     glyph: "default",
-    expected_interval_seconds: 300,
-    public_visible: true,
     deepseek_context: "",
+    probe_url: "",
+    probe_interval_seconds: 60,
+    probe_expected_status: 200,
   });
 
   const mutation = useMutation({
@@ -37,17 +67,35 @@ export default function AdminNewServicePage() {
       .replace(/^-+|-+$/g, "");
   }
 
-  function handleNameChange(v: string) {
-    setForm((f) => ({
-      ...f,
-      display_name: v,
-      slug: f.slug || slugify(v),
-    }));
+  function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const v = e.target.value;
+    setValue("display_name", v, { shouldValidate: true });
+    // Auto-fill slug only if user hasn't typed one yet
+    const currentSlug = watch("slug");
+    if (!currentSlug) {
+      setValue("slug", slugify(v), { shouldValidate: false });
+    }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    mutation.mutate(form);
+  function onValid(values: ServiceCreateValues) {
+    const payload: CreateServicePayload = {
+      display_name: values.display_name,
+      slug: values.slug,
+      public_visible: values.public_visible,
+      expected_interval_seconds: values.expected_interval_seconds,
+      description: extra.description,
+      kind: extra.kind,
+      glyph: extra.glyph,
+      deepseek_context: extra.deepseek_context,
+      ...(extra.kind === "pull"
+        ? {
+            probe_url: extra.probe_url,
+            probe_interval_seconds: extra.probe_interval_seconds,
+            probe_expected_status: extra.probe_expected_status,
+          }
+        : {}),
+    };
+    mutation.mutate(payload);
   }
 
   return (
@@ -56,17 +104,29 @@ export default function AdminNewServicePage() {
         <h1 className="admin-h2">New service</h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="admin-section">
+      <form onSubmit={handleSubmit(onValid)} className="admin-section">
         <div className="form-grid">
           <div className="field">
             <label htmlFor="display_name">Display name</label>
             <input
               id="display_name"
               type="text"
-              value={form.display_name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              required
+              {...register("display_name")}
+              onChange={handleNameChange}
             />
+            {errors.display_name && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--down)",
+                  fontFamily: "var(--font-mono)",
+                  marginTop: 4,
+                  display: "block",
+                }}
+              >
+                {errors.display_name.message}
+              </span>
+            )}
           </div>
 
           <div className="field">
@@ -74,13 +134,21 @@ export default function AdminNewServicePage() {
             <input
               id="slug"
               type="text"
-              value={form.slug}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, slug: e.target.value }))
-              }
-              pattern="[a-z0-9-]+"
-              required
+              {...register("slug")}
             />
+            {errors.slug && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--down)",
+                  fontFamily: "var(--font-mono)",
+                  marginTop: 4,
+                  display: "block",
+                }}
+              >
+                {errors.slug.message}
+              </span>
+            )}
           </div>
 
           <div className="field" style={{ gridColumn: "1 / -1" }}>
@@ -88,9 +156,9 @@ export default function AdminNewServicePage() {
             <input
               id="description"
               type="text"
-              value={form.description}
+              value={extra.description}
               onChange={(e) =>
-                setForm((f) => ({ ...f, description: e.target.value }))
+                setExtra((x) => ({ ...x, description: e.target.value }))
               }
             />
           </div>
@@ -99,12 +167,9 @@ export default function AdminNewServicePage() {
             <label htmlFor="kind">Kind</label>
             <select
               id="kind"
-              value={form.kind}
+              value={extra.kind}
               onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  kind: e.target.value as ServiceKind,
-                }))
+                setExtra((x) => ({ ...x, kind: e.target.value as ServiceKind }))
               }
             >
               <option value="push">push</option>
@@ -116,9 +181,9 @@ export default function AdminNewServicePage() {
             <label htmlFor="glyph">Glyph</label>
             <select
               id="glyph"
-              value={form.glyph ?? "default"}
+              value={extra.glyph}
               onChange={(e) =>
-                setForm((f) => ({ ...f, glyph: e.target.value }))
+                setExtra((x) => ({ ...x, glyph: e.target.value }))
               }
             >
               <option value="graces">graces</option>
@@ -136,26 +201,34 @@ export default function AdminNewServicePage() {
               id="expected_interval"
               type="number"
               min={10}
-              value={form.expected_interval_seconds ?? 300}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  expected_interval_seconds: Number(e.target.value),
-                }))
-              }
+              max={3600}
+              {...register("expected_interval_seconds", { valueAsNumber: true })}
             />
+            {errors.expected_interval_seconds && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--down)",
+                  fontFamily: "var(--font-mono)",
+                  marginTop: 4,
+                  display: "block",
+                }}
+              >
+                {errors.expected_interval_seconds.message}
+              </span>
+            )}
           </div>
 
-          {form.kind === "pull" && (
+          {extra.kind === "pull" && (
             <>
               <div className="field" style={{ gridColumn: "1 / -1" }}>
                 <label htmlFor="probe_url">Probe URL</label>
                 <input
                   id="probe_url"
                   type="url"
-                  value={form.probe_url ?? ""}
+                  value={extra.probe_url}
                   onChange={(e) =>
-                    setForm((f) => ({ ...f, probe_url: e.target.value }))
+                    setExtra((x) => ({ ...x, probe_url: e.target.value }))
                   }
                 />
               </div>
@@ -165,10 +238,10 @@ export default function AdminNewServicePage() {
                   id="probe_interval"
                   type="number"
                   min={10}
-                  value={form.probe_interval_seconds ?? 60}
+                  value={extra.probe_interval_seconds}
                   onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                    setExtra((x) => ({
+                      ...x,
                       probe_interval_seconds: Number(e.target.value),
                     }))
                   }
@@ -181,10 +254,10 @@ export default function AdminNewServicePage() {
                 <input
                   id="probe_expected_status"
                   type="number"
-                  value={form.probe_expected_status ?? 200}
+                  value={extra.probe_expected_status}
                   onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
+                    setExtra((x) => ({
+                      ...x,
                       probe_expected_status: Number(e.target.value),
                     }))
                   }
@@ -198,12 +271,9 @@ export default function AdminNewServicePage() {
             <textarea
               id="deepseek_context"
               rows={4}
-              value={form.deepseek_context ?? ""}
+              value={extra.deepseek_context}
               onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  deepseek_context: e.target.value,
-                }))
+                setExtra((x) => ({ ...x, deepseek_context: e.target.value }))
               }
               style={{
                 width: "100%",
@@ -220,21 +290,26 @@ export default function AdminNewServicePage() {
           </div>
 
           <div className="field">
-            <label
-              style={{ display: "flex", alignItems: "center", gap: 10 }}
-            >
+            <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <input
                 type="checkbox"
-                checked={form.public_visible ?? true}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    public_visible: e.target.checked,
-                  }))
-                }
+                {...register("public_visible")}
               />
               Public visible
             </label>
+            {errors.public_visible && (
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--down)",
+                  fontFamily: "var(--font-mono)",
+                  marginTop: 4,
+                  display: "block",
+                }}
+              >
+                {errors.public_visible.message}
+              </span>
+            )}
           </div>
         </div>
 

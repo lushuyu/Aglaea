@@ -13,6 +13,15 @@ import {
 import StatusBadge from "@/components/StatusBadge";
 import HeartbeatStrip from "@/components/HeartbeatStrip";
 import { fmtTime } from "@/lib/fmt";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import type { ServiceKind } from "@/types/api";
 
 export default function AdminServiceDetailPage() {
@@ -21,7 +30,7 @@ export default function AdminServiceDetailPage() {
   const slug = params.slug;
   const queryClient = useQueryClient();
   const [newKeyLabel, setNewKeyLabel] = useState("");
-  const [newKeyPlaintext, setNewKeyPlaintext] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["admin-service", slug],
@@ -74,9 +83,13 @@ export default function AdminServiceDetailPage() {
   const createKeyMutation = useMutation({
     mutationFn: () => adminCreateApiKey(slug, { label: newKeyLabel }),
     onSuccess: (resp) => {
-      setNewKeyPlaintext(resp.plaintext);
       setNewKeyLabel("");
       void queryClient.invalidateQueries({ queryKey: ["admin-service", slug] });
+      toast.success(resp.plaintext, {
+        duration: Infinity,
+        description: "Save this key — it will not be shown again.",
+        action: { label: "Dismiss", onClick: () => {} },
+      });
     },
   });
 
@@ -96,13 +109,7 @@ export default function AdminServiceDetailPage() {
   });
 
   function handleDelete() {
-    if (
-      window.confirm(
-        `Delete service "${slug}"? This removes all heartbeats, incidents, and API keys. This cannot be undone.`
-      )
-    ) {
-      deleteMutation.mutate();
-    }
+    setDeleteConfirmOpen(true);
   }
 
   if (isLoading) {
@@ -387,35 +394,6 @@ export default function AdminServiceDetailPage() {
           API keys
         </h2>
 
-        {newKeyPlaintext && (
-          <div style={{ marginBottom: 16 }}>
-            <div className="warn-banner" style={{ marginBottom: 8 }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12,
-                  color: "var(--degraded)",
-                }}
-              >
-                Save this key — it will not be shown again.
-              </span>
-            </div>
-            <div className="key-display">{newKeyPlaintext}</div>
-            <button
-              onClick={() => setNewKeyPlaintext(null)}
-              style={{
-                marginTop: 8,
-                fontSize: 12,
-                color: "var(--fg-3)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
 
         <table className="admin-table">
           <thead>
@@ -539,6 +517,50 @@ export default function AdminServiceDetailPage() {
           </button>
         </div>
       </div>
+
+      {/* Delete confirm dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete service</DialogTitle>
+          </DialogHeader>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--fg-2)",
+              lineHeight: 1.6,
+              margin: 0,
+            }}
+          >
+            Delete service <strong style={{ color: "var(--fg-0)" }}>{slug}</strong>? This removes all heartbeats, incidents, and API keys. This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                deleteMutation.mutate();
+              }}
+              style={{
+                background: "var(--down)",
+                color: "var(--bg-0)",
+                borderColor: "var(--down)",
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting…" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Recent incidents */}
       {incidents.length > 0 && (

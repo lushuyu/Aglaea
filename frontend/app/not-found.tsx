@@ -41,7 +41,7 @@ export default function NotFound() {
         href="/"
         style={{
           fontFamily: "var(--font-mono)",
-          fontSize: 13,
+          fontSize: 15,
           color: "var(--accent)",
           textDecoration: "none",
           borderBottom: "1px solid var(--accent-line)",

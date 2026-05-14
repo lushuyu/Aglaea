@@ -23,7 +23,7 @@
 .hb-table { display: flex; flex-direction: column; }
 .hb-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line-1); }
 .hb-row.hb-hd {
-  font-family: var(--font-mono); font-size: 10px;
+  font-family: var(--font-mono); font-size: 12px;
   color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em;
   padding-bottom: 8px;
 }

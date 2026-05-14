@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -8,12 +8,26 @@ import {
   adminPublishIncident,
   adminRejectIncident,
   adminRegenerateReport,
+  adminAddIncidentUpdate,
+  adminEditIncidentSummary,
 } from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
+import MutationErrorBanner from "@/components/MutationErrorBanner";
 import Swimlane from "@/components/Swimlane";
 import DiffView from "@/components/DiffView";
 import { fmtTime, fmtDuration, fmtSGT } from "@/lib/fmt";
-import type { SwimlaneData, SwimlaneSegment } from "@/types/api";
+import { formatDistanceToNow } from "date-fns";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
+import type { SwimlaneData, SwimlaneSegment, IncidentUpdate } from "@/types/api";
 
 type Tab = "report" | "timeline" | "diff" | "raw";
 
@@ -26,27 +40,55 @@ export default function AdminIncidentReviewPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [regenInstruction, setRegenInstruction] = useState("");
   const [showRegenInput, setShowRegenInput] = useState(false);
-  // Regenerate burst-polling state. When regenerate is queued, we track:
-  //  - regenPendingSince: timestamp (ms) of the regen request (null when not pending).
-  //  - regenBaselineCount: report_generation_count captured at click time.
-  //  - regenBaselineText: report_text captured at click time (fallback signal).
-  // Burst window terminates when count increments past baseline, OR text changes
-  // (fallback), OR 30s safety cap elapses.
-  const [regenPendingSince, setRegenPendingSince] = useState<number | null>(
-    null
-  );
-  const [regenBaselineCount, setRegenBaselineCount] = useState<number | null>(
-    null
-  );
-  const [regenBaselineText, setRegenBaselineText] = useState<string | null>(
-    null
-  );
+  // Regenerate burst-polling signals.
+  // regenBaselineCount: report_generation_count at click time (drives refetchInterval).
+  // regenPendingSince: timestamp (ms) when regen was triggered (30s safety cap).
+  const [regenPendingSince, setRegenPendingSince] = useState<number | null>(null);
+  const [regenBaselineCount, setRegenBaselineCount] = useState<number | null>(null);
 
-  const { data, isLoading, error } = useQuery({
+  // Summary edit dialog state
+  const [summaryDialogOpen, setSummaryDialogOpen] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState("");
+  const [summaryError, setSummaryError] = useState<Error | null>(null);
+
+  // Add update form state
+  const [updateText, setUpdateText] = useState("");
+  const [updateError, setUpdateError] = useState<Error | null>(null);
+
+  // Refs for refetchInterval closure (avoid stale captures)
+  const regenBaselineCountRef = useRef<number | null>(null);
+  const regenPendingSinceRef = useRef<number | null>(null);
+
+  const { data, isLoading, error, isFetching } = useQuery({
     queryKey: ["admin-incident", id],
     queryFn: () => adminGetIncident(id),
-    refetchInterval: regenPendingSince !== null ? 5_000 : 15_000,
+    refetchInterval: (query) => {
+      const d = query.state.data;
+      if (!d) return 15_000;
+      const baseline = regenBaselineCountRef.current;
+      // If baseline has advanced (regenerate completed), stop burst polling
+      if (baseline !== null && d.incident.report_generation_count > baseline) {
+        return false;
+      }
+      // If we're inside the burst window, poll every 5s
+      if (
+        regenPendingSinceRef.current !== null &&
+        Date.now() - regenPendingSinceRef.current < 30_000
+      ) {
+        return 5_000;
+      }
+      return 15_000;
+    },
   });
+
+  // Sync state into refs so the refetchInterval closure sees current values
+  useEffect(() => {
+    regenBaselineCountRef.current = regenBaselineCount;
+  }, [regenBaselineCount]);
+
+  useEffect(() => {
+    regenPendingSinceRef.current = regenPendingSince;
+  }, [regenPendingSince]);
 
   // Seed editor with draft text on first load
   useEffect(() => {
@@ -55,12 +97,62 @@ export default function AdminIncidentReviewPage() {
     }
   }, [data, isDirty]);
 
+  // Close burst-poll window when count advances past baseline, or after 30s cap
+  useEffect(() => {
+    if (regenPendingSince === null) return;
+    const currentCount = data?.incident.report_generation_count ?? null;
+    const countAdvanced =
+      regenBaselineCount !== null &&
+      currentCount !== null &&
+      currentCount > regenBaselineCount;
+    if (countAdvanced) {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+      return;
+    }
+    const elapsed = Date.now() - regenPendingSince;
+    const remaining = 30_000 - elapsed;
+    if (remaining <= 0) {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setRegenPendingSince(null);
+      setRegenBaselineCount(null);
+    }, remaining);
+    return () => window.clearTimeout(timer);
+  }, [regenPendingSince, regenBaselineCount, data]);
+
   const publishMutation = useMutation({
     mutationFn: () =>
       adminPublishIncident(id, { published_text: editedText }),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["admin-incident", id] });
+      const previous = queryClient.getQueryData(["admin-incident", id]);
+      queryClient.setQueryData(["admin-incident", id], (old: typeof data) => {
+        if (!old) return old;
+        return {
+          ...old,
+          incident: {
+            ...old.incident,
+            report_state: "published" as const,
+            published_at: new Date().toISOString(),
+          },
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["admin-incident", id], context.previous);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin-incident", id],
+        predicate: (query) =>
+          query.queryKey[0] === "admin-incident" ||
+          query.queryKey[0] === "public-active-incidents",
       });
       void queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
       setIsDirty(false);
@@ -69,9 +161,31 @@ export default function AdminIncidentReviewPage() {
 
   const rejectMutation = useMutation({
     mutationFn: () => adminRejectIncident(id),
-    onSuccess: () => {
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ["admin-incident", id] });
+      const previous = queryClient.getQueryData(["admin-incident", id]);
+      queryClient.setQueryData(["admin-incident", id], (old: typeof data) => {
+        if (!old) return old;
+        return {
+          ...old,
+          incident: {
+            ...old.incident,
+            report_state: "rejected" as const,
+          },
+        };
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(["admin-incident", id], context.previous);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin-incident", id],
+        predicate: (query) =>
+          query.queryKey[0] === "admin-incident" ||
+          query.queryKey[0] === "public-active-incidents",
       });
       void queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
     },
@@ -79,10 +193,10 @@ export default function AdminIncidentReviewPage() {
 
   const regenMutation = useMutation({
     mutationFn: () => {
-      // Capture baselines BEFORE the request flies so the burst-poll can
-      // detect when the worker's new draft lands.
-      setRegenBaselineCount(data?.incident.report_generation_count ?? null);
-      setRegenBaselineText(data?.incident.report_text ?? null);
+      // Capture baselines BEFORE the request flies so refetchInterval detects completion
+      const baseline = data?.incident.report_generation_count ?? null;
+      setRegenBaselineCount(baseline);
+      regenBaselineCountRef.current = baseline;
       return adminRegenerateReport(id, {
         instruction: regenInstruction || undefined,
       });
@@ -94,55 +208,50 @@ export default function AdminIncidentReviewPage() {
       setEditedText(resp.incident.report_text ?? "");
       setIsDirty(false);
       setRegenInstruction("");
-      // Open the burst-poll window. Dialog stays mounted so the chip is visible.
-      setRegenPendingSince(Date.now());
+      // Open the burst-poll window
+      const now = Date.now();
+      setRegenPendingSince(now);
+      regenPendingSinceRef.current = now;
     },
     onError: () => {
-      // Keep the dialog open so the user can read the error and retry.
-      // No baseline cleanup needed — regenPendingSince is still null.
       setRegenBaselineCount(null);
-      setRegenBaselineText(null);
+      regenBaselineCountRef.current = null;
     },
   });
 
-  // Close the burst-poll window once the worker's new draft is observable, or
-  // after the 30s safety cap elapses (covers the silent-DeepSeek-failure case).
-  useEffect(() => {
-    if (regenPendingSince === null) return;
-    const currentCount = data?.incident.report_generation_count ?? null;
-    const currentText = data?.incident.report_text ?? null;
-    const countAdvanced =
-      regenBaselineCount !== null &&
-      currentCount !== null &&
-      currentCount > regenBaselineCount;
-    const textChanged =
-      regenBaselineText !== null &&
-      currentText !== null &&
-      currentText !== regenBaselineText;
-    if (countAdvanced || textChanged) {
-      setRegenPendingSince(null);
-      setRegenBaselineCount(null);
-      setRegenBaselineText(null);
-      return;
-    }
-    const elapsed = Date.now() - regenPendingSince;
-    const remaining = 30_000 - elapsed;
-    if (remaining <= 0) {
-      setRegenPendingSince(null);
-      setRegenBaselineCount(null);
-      setRegenBaselineText(null);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setRegenPendingSince(null);
-      setRegenBaselineCount(null);
-      setRegenBaselineText(null);
-    }, remaining);
-    return () => window.clearTimeout(timer);
-  }, [regenPendingSince, regenBaselineCount, regenBaselineText, data]);
+  const summaryMutation = useMutation({
+    mutationFn: () =>
+      adminEditIncidentSummary(Number(id), summaryDraft),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-incident", id] });
+      setSummaryDialogOpen(false);
+      setSummaryError(null);
+      toast.success("Summary updated");
+    },
+    onError: (err: Error) => {
+      setSummaryError(err);
+    },
+  });
 
-  const regenChipVisible =
-    regenMutation.isPending || regenPendingSince !== null;
+  const addUpdateMutation = useMutation({
+    mutationFn: () =>
+      adminAddIncidentUpdate(Number(id), { text: updateText }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        predicate: (query) =>
+          query.queryKey[0] === "admin-incident" ||
+          query.queryKey[0] === "public-active-incidents",
+      });
+      setUpdateText("");
+      setUpdateError(null);
+      toast.success("Update added");
+    },
+    onError: (err: Error) => {
+      setUpdateError(err);
+    },
+  });
+
+  const isRefreshing = regenMutation.isPending || isFetching;
 
   if (isLoading) {
     return (
@@ -384,7 +493,7 @@ export default function AdminIncidentReviewPage() {
           >
             {regenMutation.isPending ? "Generating…" : "Generate"}
           </button>
-          {regenChipVisible && (
+          {isRefreshing && (
             <span
               style={{
                 fontFamily: "var(--font-mono)",
@@ -403,37 +512,273 @@ export default function AdminIncidentReviewPage() {
         </div>
       )}
 
-      {(publishMutation.isError || rejectMutation.isError) && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: "8px 12px",
-            background: "var(--down-soft)",
-            border: "1px solid var(--down-line)",
-            borderRadius: "var(--radius)",
-            fontSize: 12,
-            color: "var(--down)",
-          }}
-        >
-          {((publishMutation.error ?? rejectMutation.error) as Error).message}
-        </div>
-      )}
+      <MutationErrorBanner
+        error={publishMutation.isError ? (publishMutation.error as Error) : null}
+      />
+      <MutationErrorBanner
+        error={rejectMutation.isError ? (rejectMutation.error as Error) : null}
+      />
+      <MutationErrorBanner
+        error={regenMutation.isError ? (regenMutation.error as Error) : null}
+      />
 
-      {regenMutation.isError && (
+      {/* Summary block */}
+      <div
+        style={{
+          marginBottom: 24,
+          padding: "16px 20px",
+          background: "var(--bg-1)",
+          border: "1px solid var(--line-2)",
+          borderRadius: "var(--radius)",
+        }}
+      >
         <div
           style={{
-            marginBottom: 16,
-            padding: "8px 12px",
-            background: "var(--down-soft)",
-            border: "1px solid var(--down-line)",
-            borderRadius: "var(--radius)",
-            fontSize: 12,
-            color: "var(--down)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 10,
           }}
         >
-          Regenerate failed: {(regenMutation.error as Error).message}
+          <h3
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: 15,
+              fontWeight: 500,
+              color: "var(--fg-1)",
+              margin: 0,
+            }}
+          >
+            Summary
+          </h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSummaryDraft(incident.summary ?? "");
+              setSummaryError(null);
+              setSummaryDialogOpen(true);
+            }}
+          >
+            Edit summary
+          </Button>
         </div>
-      )}
+        {incident.summary ? (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 13,
+              color: "var(--fg-1)",
+              lineHeight: 1.65,
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {incident.summary}
+          </p>
+        ) : (
+          <p
+            style={{
+              margin: 0,
+              fontSize: 12,
+              color: "var(--fg-3)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            No summary yet. Add one to display it on the public incident page.
+          </p>
+        )}
+        <div style={{ marginTop: 10 }}>
+          <StatusBadge lifecycle={incident.lifecycle_state} size="sm" />
+        </div>
+      </div>
+
+      {/* Updates timeline */}
+      <div
+        style={{
+          marginBottom: 24,
+          padding: "16px 20px",
+          background: "var(--bg-1)",
+          border: "1px solid var(--line-2)",
+          borderRadius: "var(--radius)",
+        }}
+      >
+        <h3
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 15,
+            fontWeight: 500,
+            color: "var(--fg-1)",
+            margin: "0 0 14px 0",
+          }}
+        >
+          Updates
+        </h3>
+
+        {/* Existing updates list (reverse-chrono from backend) */}
+        {incident.updates.length > 0 ? (
+          <div style={{ marginBottom: 16 }}>
+            {incident.updates.map((upd: IncidentUpdate) => {
+              const absTime = new Date(upd.t).toLocaleString();
+              const relTime = formatDistanceToNow(new Date(upd.t), {
+                addSuffix: true,
+              });
+              const kindStyles: Record<
+                IncidentUpdate["kind"],
+                { background: string; color: string; border: string }
+              > = {
+                state_transition: {
+                  background:
+                    "color-mix(in oklch, var(--info, #3b82f6) 12%, transparent)",
+                  color: "var(--info, #2563eb)",
+                  border:
+                    "1px solid color-mix(in oklch, var(--info, #3b82f6) 28%, transparent)",
+                },
+                summary_update: {
+                  background: "var(--bg-2)",
+                  color: "var(--fg-3)",
+                  border: "1px solid var(--line-2)",
+                },
+                manual: {
+                  background:
+                    "color-mix(in oklch, var(--accent) 12%, transparent)",
+                  color: "var(--accent)",
+                  border: "1px solid var(--accent-line)",
+                },
+              };
+              return (
+                <div
+                  key={upd.id}
+                  style={{
+                    display: "flex",
+                    gap: 12,
+                    alignItems: "flex-start",
+                    paddingBottom: 12,
+                    marginBottom: 12,
+                    borderBottom: "1px solid var(--line-1)",
+                  }}
+                >
+                  <span
+                    title={absTime}
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 11,
+                      color: "var(--fg-3)",
+                      whiteSpace: "nowrap",
+                      minWidth: 110,
+                      paddingTop: 2,
+                    }}
+                  >
+                    {relTime}
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 10,
+                      padding: "2px 7px",
+                      borderRadius: 999,
+                      whiteSpace: "nowrap",
+                      alignSelf: "flex-start",
+                      paddingTop: 3,
+                      ...kindStyles[upd.kind],
+                    }}
+                  >
+                    {upd.kind.replace("_", " ")}
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      fontSize: 13,
+                      color: "var(--fg-1)",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {upd.text ??
+                      (upd.kind === "state_transition"
+                        ? "(state transition)"
+                        : "(no text)")}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p
+            style={{
+              margin: "0 0 16px 0",
+              fontSize: 12,
+              color: "var(--fg-3)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            No updates yet.
+          </p>
+        )}
+
+        {/* Add manual update form */}
+        <div
+          style={{
+            borderTop: "1px solid var(--line-2)",
+            paddingTop: 14,
+          }}
+        >
+          <MutationErrorBanner
+            error={updateError}
+            onDismiss={() => setUpdateError(null)}
+          />
+          <Textarea
+            placeholder="Write a status update…"
+            value={updateText}
+            onChange={(e) => setUpdateText(e.target.value)}
+            style={{ minHeight: 80, marginBottom: 10 }}
+          />
+          <Button
+            variant="default"
+            size="sm"
+            disabled={!updateText.trim() || addUpdateMutation.isPending}
+            onClick={() => addUpdateMutation.mutate()}
+          >
+            {addUpdateMutation.isPending ? "Adding…" : "Add update"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary edit dialog */}
+      <Dialog open={summaryDialogOpen} onOpenChange={setSummaryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit summary</DialogTitle>
+          </DialogHeader>
+          <MutationErrorBanner
+            error={summaryError}
+            onDismiss={() => setSummaryError(null)}
+          />
+          <Textarea
+            value={summaryDraft}
+            onChange={(e) => setSummaryDraft(e.target.value)}
+            placeholder="Plain-text summary of the incident…"
+            style={{ minHeight: 120 }}
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSummaryDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              disabled={summaryMutation.isPending}
+              onClick={() => summaryMutation.mutate()}
+            >
+              {summaryMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Two-column layout */}
       <div className="ir-grid">

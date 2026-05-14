@@ -1,27 +1,26 @@
 /**
  * Aglaea — formatting helpers
- * Ported from docs/design/project/src/components.jsx
+ * Uses date-fns + date-fns-tz for locale-aware and timezone-aware formatting.
  */
 
+import { formatDistanceToNow, format, formatDuration, intervalToDuration } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
+
 /**
- * Relative time string: "just now", "3m ago", "2h ago", "5d ago", or ISO date.
+ * Relative time string: "3 minutes ago", "about 2 hours ago", etc.
+ * Thin wrapper around date-fns formatDistanceToNow.
  * Pass `now` to make it testable / tick-driven.
  */
-export function fmtTime(iso: string | null | undefined, now?: Date): string {
+export function fmtTime(iso: string | null | undefined, _now?: Date): string {
   if (!iso) return "—";
-  const d = new Date(iso);
-  const ref = now ?? new Date();
-  const ms = ref.getTime() - d.getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 5) return "just now";
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const dd = Math.floor(h / 24);
-  if (dd < 30) return `${dd}d ago`;
-  return d.toISOString().slice(0, 10);
+  return formatDistanceToNow(new Date(iso), { addSuffix: true });
+}
+
+/**
+ * Absolute date-time string: "2024-05-13 07:42"
+ */
+export function fmtAbsolute(iso: string): string {
+  return format(new Date(iso), "yyyy-MM-dd HH:mm");
 }
 
 /**
@@ -31,10 +30,9 @@ export function fmtTime(iso: string | null | undefined, now?: Date): string {
 export function fmtDuration(startIso: string, endIso?: string | null): string {
   const start = new Date(startIso);
   const end = endIso ? new Date(endIso) : new Date();
-  let s = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
-  const h = Math.floor(s / 3600);
-  s -= h * 3600;
-  const m = Math.floor(s / 60);
+  const duration = intervalToDuration({ start, end });
+  const h = duration.hours ?? 0;
+  const m = duration.minutes ?? 0;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
@@ -44,16 +42,7 @@ export function fmtDuration(startIso: string, endIso?: string | null): string {
  * Output: "13 May, 07:42 UTC"
  */
 export function fmtClock(iso: string): string {
-  const d = new Date(iso);
-  return (
-    d.toLocaleString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      day: "2-digit",
-      month: "short",
-      timeZone: "UTC",
-    }) + " UTC"
-  );
+  return format(new Date(iso), "d MMM, HH:mm") + " UTC";
 }
 
 /**
@@ -73,9 +62,5 @@ export function fmtNum(n: number | null | undefined): string {
  */
 export function fmtSGT(date?: Date): string {
   const d = date ?? new Date();
-  return d.toLocaleString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Singapore",
-  }) + " SGT";
+  return formatInTimeZone(d, "Asia/Singapore", "HH:mm") + " SGT";
 }

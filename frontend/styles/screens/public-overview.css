@@ -82,7 +82,7 @@
 .services-list { display: flex; flex-direction: column; }
 .service-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 2fr) auto;
+  grid-template-columns: minmax(220px, 1.5fr) auto minmax(100px, 1fr) auto;
   gap: 24px;
   padding: 18px 4px;
   align-items: center;
@@ -92,8 +92,17 @@
 }
 .service-row:hover { background: var(--bg-1); }
 .service-row-left { display: flex; align-items: center; gap: 14px; }
+.service-row-uptime { display: flex; align-items: center; flex-shrink: 0; }
 .service-row-mid { min-width: 0; }
 .service-row-right { display: flex; align-items: center; gap: 20px; }
+
+/* Clickable service row — Link wrapper */
+.service-row-clickable {
+  display: contents;
+}
+.service-row-clickable:hover .service-row {
+  background: color-mix(in oklch, var(--bg-1) 80%, var(--bg-2));
+}
 
 /* ── Subcheck strip — flex-wrap: wrap ensures 6-key set wraps at narrow widths ── */
 .subcheck-strip { display: flex; flex-wrap: wrap; gap: 6px 14px; }

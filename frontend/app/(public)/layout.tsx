@@ -22,7 +22,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
           <span
             style={{
               fontFamily: "var(--font-serif)",
-              fontSize: 20,
+              fontSize: 23,
               letterSpacing: "-0.02em",
             }}
           >
@@ -31,6 +31,18 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         </Link>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <LocalClock />
+          <Link href="/about" className="pub-nav-link" style={{ textDecoration: "none" }}>
+            About
+          </Link>
+          <a
+            href="https://lushuyu.site"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="pub-nav-link"
+            style={{ textDecoration: "none" }}
+          >
+            lushuyu.site
+          </a>
           <Link href="/admin" className="pub-nav-cta" style={{ textDecoration: "none" }}>
             Admin
           </Link>
@@ -40,50 +52,6 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
       <PubTabBar />
 
       <main className="pub-main">{children}</main>
-
-      <footer className="pub-footer">
-        <div className="pub-footer-inner">
-          <div>
-            <div
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: 15,
-                color: "var(--fg-1)",
-                marginBottom: 4,
-              }}
-            >
-              Aglaea
-            </div>
-            <div
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                color: "var(--fg-3)",
-              }}
-            >
-              Service status &amp; signal
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              gap: 24,
-              fontSize: 13,
-              color: "var(--fg-3)",
-            }}
-          >
-            <Link href="/" style={{ color: "var(--fg-3)" }}>
-              Status
-            </Link>
-            <Link href="/claude-code" style={{ color: "var(--fg-3)" }}>
-              Claude Code
-            </Link>
-            <Link href="/about" style={{ color: "var(--fg-3)" }}>
-              About
-            </Link>
-          </div>
-        </div>
-      </footer>
 
       <ThemeToggle />
     </>
