@@ -18,19 +18,25 @@ the wire.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Final
 
-from sqlalchemy import asc, bindparam, select
+from sqlalchemy import asc, bindparam, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import func
 
 from aglaea.models.audit import AuditLog
 from aglaea.models.heartbeat import HeartbeatEvent
+from aglaea.models.incident_updates import IncidentUpdate, IncidentUpdateKind
 from aglaea.models.incidents import Incident
 
 # Tunables (mirror plan §Risk 4 + executor task spec):
 _HEARTBEAT_TRANSITION_CAP = 30  # newest-30 retained on overflow
 _HEARTBEAT_DEDUPE_WINDOW_SECONDS = 30  # per-subcheck transition coalesce window
+
+# C2 boundary: when True, prefer persisted incident_updates rows over heartbeat
+# derivation for state-transition events. Set False to force legacy derivation
+# (rollback escape). Default True: persisted stream is the new source of truth.
+_PREFER_PERSISTED_TRANSITIONS: Final[bool] = True
 
 
 def _iso(dt: datetime) -> str:
@@ -199,6 +205,55 @@ async def _audit_events(
     return out
 
 
+async def _select_transitions(
+    session: AsyncSession, incident: Incident
+) -> list[dict[str, Any]]:
+    """Return state-transition timeline events using the C2 boundary rule.
+
+    When ``_PREFER_PERSISTED_TRANSITIONS`` is True and persisted
+    ``incident_updates`` rows with ``kind='state_transition'`` exist for this
+    incident, source transitions exclusively from that table.  Falls through to
+    ``_heartbeat_transitions`` (legacy derivation) when:
+    - ``_PREFER_PERSISTED_TRANSITIONS`` is False (rollback escape), or
+    - No persisted state-transition rows exist for this incident (pre-migration
+      incidents and test fixtures with empty ``incident_updates``).
+    """
+    if _PREFER_PERSISTED_TRANSITIONS:
+        exists_q = (
+            select(literal(1))
+            .where(
+                IncidentUpdate.incident_id == incident.id,
+                IncidentUpdate.kind == IncidentUpdateKind.state_transition,
+            )
+            .limit(1)
+        )
+        has_persisted = (await session.execute(exists_q)).scalar() is not None
+        if has_persisted:
+            stmt = (
+                select(IncidentUpdate)
+                .where(
+                    IncidentUpdate.incident_id == incident.id,
+                    IncidentUpdate.kind == IncidentUpdateKind.state_transition,
+                )
+                .order_by(IncidentUpdate.t.asc())
+            )
+            rows = list((await session.execute(stmt)).scalars())
+            return [
+                {
+                    "t": _iso(r.t),
+                    "sub": r.text or "unknown",
+                    "status": (
+                        r.status_snapshot.get("service_status", "unknown")
+                        if isinstance(r.status_snapshot, dict)
+                        else "unknown"
+                    ),
+                    "note": None,
+                }
+                for r in rows
+            ]
+    return await _heartbeat_transitions(session, incident)
+
+
 async def build_admin_timeline(
     session: AsyncSession, incident: Incident
 ) -> list[dict[str, Any]]:
@@ -207,7 +262,7 @@ async def build_admin_timeline(
     Returns rows sorted ascending by ``t``.
     """
     lifecycle = await _incident_lifecycle_events(incident)
-    transitions = await _heartbeat_transitions(session, incident)
+    transitions = await _select_transitions(session, incident)
     audit = await _audit_events(session, incident.id)
     merged: list[dict[str, Any]] = []
     merged.extend(lifecycle)
@@ -227,7 +282,7 @@ async def build_public_timeline(
     Returns rows sorted ascending by ``t``.
     """
     lifecycle = await _incident_lifecycle_events(incident)
-    transitions = await _heartbeat_transitions(session, incident)
+    transitions = await _select_transitions(session, incident)
     merged: list[dict[str, Any]] = []
     merged.extend(lifecycle)
     merged.extend(transitions)

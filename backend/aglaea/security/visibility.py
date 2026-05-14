@@ -38,6 +38,19 @@ PUBLIC_FIELDS_INCIDENT_PUBLISHED: Final[frozenset[str]] = frozenset({
     "affected_subchecks",
     "published_text",
     "published_at",
+    "summary",
+    "updates",
+})
+
+# Fields of IncidentUpdate exposed publicly (per-row allowlist).
+# author_id and audit_event_id are admin-only and excluded here.
+PUBLIC_FIELDS_INCIDENT_UPDATE: Final[frozenset[str]] = frozenset({
+    "id",
+    "incident_id",
+    "t",
+    "kind",
+    "text",
+    "status_snapshot",
 })
 
 # Fields of Incident exposed publicly while ongoing-unpublished (the
@@ -98,5 +111,6 @@ __all__ = [
     "PUBLIC_FIELDS_HEARTBEAT",
     "PUBLIC_FIELDS_INCIDENT_PUBLISHED",
     "PUBLIC_FIELDS_INCIDENT_SKELETON",
+    "PUBLIC_FIELDS_INCIDENT_UPDATE",
     "PUBLIC_FIELDS_SERVICE",
 ]

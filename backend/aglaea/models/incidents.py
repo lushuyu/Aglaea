@@ -4,15 +4,18 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from sqlalchemy import ARRAY, BigInteger, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum
 
 from aglaea.models.base import Base
+
+if TYPE_CHECKING:
+    from aglaea.models.incident_updates import IncidentUpdate
 
 
 class IncidentStatus(str, enum.Enum):
@@ -25,6 +28,13 @@ class IncidentReportState(str, enum.Enum):
     draft = "draft"
     published = "published"
     rejected = "rejected"
+
+
+class IncidentLifecycleState(str, enum.Enum):
+    investigating = "investigating"
+    identified = "identified"
+    monitoring = "monitoring"
+    resolved = "resolved"
 
 
 class Incident(Base):
@@ -75,4 +85,16 @@ class Incident(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=func.now()
+    )
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    lifecycle_state: Mapped[IncidentLifecycleState] = mapped_column(
+        Enum(IncidentLifecycleState, name="incident_lifecycle_state", create_type=False),
+        nullable=False,
+        server_default="investigating",
+    )
+
+    updates: Mapped[list["IncidentUpdate"]] = relationship(
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        order_by="IncidentUpdate.t.asc()",
     )

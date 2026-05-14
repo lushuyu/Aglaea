@@ -17,6 +17,7 @@ from aglaea.security.visibility import (
     PUBLIC_FIELDS_HEARTBEAT,
     PUBLIC_FIELDS_INCIDENT_PUBLISHED,
     PUBLIC_FIELDS_INCIDENT_SKELETON,
+    PUBLIC_FIELDS_INCIDENT_UPDATE,
     PUBLIC_FIELDS_SERVICE,
 )
 
@@ -36,6 +37,19 @@ class PublicService(BaseModel):
     public_visible: bool
 
 
+class PublicIncidentUpdate(BaseModel):
+    """Public per-row view of an incident update. Excludes author_id/audit_event_id."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    incident_id: int
+    t: datetime
+    kind: Literal["state_transition", "manual", "summary_update"]
+    text: str | None
+    status_snapshot: dict[str, Any] | None
+
+
 class PublicIncidentPublished(BaseModel):
     """Published-narrative incident view."""
 
@@ -49,6 +63,8 @@ class PublicIncidentPublished(BaseModel):
     affected_subchecks: list[str]
     published_text: str
     published_at: datetime
+    summary: str | None
+    updates: list[PublicIncidentUpdate]
 
 
 class PublicIncidentSkeleton(BaseModel):
@@ -84,6 +100,11 @@ class PublicHeartbeat(BaseModel):
 _VISIBILITY_CONTRACTS: tuple[tuple[type[BaseModel], frozenset[str], str], ...] = (
     (PublicService, PUBLIC_FIELDS_SERVICE, "PUBLIC_FIELDS_SERVICE"),
     (
+        PublicIncidentUpdate,
+        PUBLIC_FIELDS_INCIDENT_UPDATE,
+        "PUBLIC_FIELDS_INCIDENT_UPDATE",
+    ),
+    (
         PublicIncidentPublished,
         PUBLIC_FIELDS_INCIDENT_PUBLISHED,
         "PUBLIC_FIELDS_INCIDENT_PUBLISHED",
@@ -95,6 +116,15 @@ _VISIBILITY_CONTRACTS: tuple[tuple[type[BaseModel], frozenset[str], str], ...] =
     ),
     (PublicHeartbeat, PUBLIC_FIELDS_HEARTBEAT, "PUBLIC_FIELDS_HEARTBEAT"),
 )
+
+
+__all__ = [
+    "PublicHeartbeat",
+    "PublicIncidentPublished",
+    "PublicIncidentSkeleton",
+    "PublicIncidentUpdate",
+    "PublicService",
+]
 
 
 def _verify_allowlist_coupling() -> None:

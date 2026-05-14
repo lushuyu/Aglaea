@@ -41,6 +41,7 @@ from aglaea.db import session_scope
 from aglaea.llm.context import build_incident_context
 from aglaea.llm.deepseek import DeepSeekClient, DeepSeekError
 from aglaea.llm.prompts import build_messages
+from aglaea.models.incident_updates import IncidentUpdate, IncidentUpdateKind
 from aglaea.models.incidents import Incident, IncidentReportState, IncidentStatus
 from aglaea.models.services import Service
 from aglaea.ntfy import send_alert
@@ -50,11 +51,21 @@ log = logging.getLogger(__name__)
 
 
 class ReportTrigger(enum.Enum):
-    """T1 reserved but never enqueued in v0.1 (AC1.12)."""
+    """Trigger precedence (C39): T3 > T2.5 > T0 > T1 > T2 — single enum + max() site.
+
+    T1 (subcheck_changed) is DROPPED in v0.1 per C38. Value 20 is RESERVED
+    so a v1.x revival needs zero enum reshape.
+
+    T2.5 (new_worst) sits between INITIAL (T0, value=30) and FINAL (T3, value=40).
+    It fires when a subcheck degrades to a severity not previously seen on this
+    incident. ADR-1 (iteration 2): value=35 so priority ordering is maintained
+    without renumbering existing T0/T3.
+    """
 
     PERIODIC = 10  # T2
     SUBCHECK_CHANGED = 20  # T1 — RESERVED in v0.1; enum kept for v1.x revival
     INITIAL = 30  # T0
+    NEW_WORST = 35  # T2.5 — ADR-1: new-worst severity transition (iteration 2)
     FINAL = 40  # T3
 
     @classmethod
@@ -223,16 +234,29 @@ async def run_trigger(
         )
         return
 
+    now_ts = datetime.now(timezone.utc)
+    # Dual-write: both report_text (existing field) and summary (Phase 2a column).
+    # Both carry the same prose; dual-write avoids a same-PR schema migration.
     incident.report_text = narrative
+    incident.summary = narrative
     incident.report_state = (
         IncidentReportState.draft
         if incident.report_state != IncidentReportState.published
         else IncidentReportState.published
     )
-    incident.report_generated_at = datetime.now(timezone.utc)
+    incident.report_generated_at = now_ts
     incident.report_generation_count = incident.report_generation_count + 1
     incident.report_generation_reason = reason.name
     session.add(incident)
+    # Emit kind='summary_update' timeline row with a bounded text snippet.
+    summary_update = IncidentUpdate(
+        incident_id=incident_id,
+        t=now_ts,
+        kind=IncidentUpdateKind.summary_update,
+        text=narrative[:500],
+        status_snapshot=None,
+    )
+    session.add(summary_update)
     log.info(
         "report.generated",
         extra={

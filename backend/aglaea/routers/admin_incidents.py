@@ -10,12 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from aglaea.db import get_session
 from aglaea.llm.context import _sanitise_user_text
+from aglaea.models.incident_updates import IncidentUpdate, IncidentUpdateKind
 from aglaea.models.incidents import Incident, IncidentReportState, IncidentStatus
 from aglaea.routers._deps import client_ip, require_admin_row
 from aglaea.schemas.incident import (
     IncidentAdminOut,
     IncidentRegenerateRequest,
     IncidentReportEdit,
+    IncidentSummaryEdit,
+    IncidentUpdateCreate,
+    IncidentUpdateOut,
 )
 from aglaea.security.audit import audit
 from aglaea.services.timeline import build_admin_timeline
@@ -51,17 +55,95 @@ async def get_incident(
     row = await session.get(Incident, incident_id)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    # Eagerly load updates so IncidentAdminOut.updates is populated.
+    updates_stmt = (
+        select(IncidentUpdate)
+        .where(IncidentUpdate.incident_id == incident_id)
+        .order_by(IncidentUpdate.t.desc())
+    )
+    updates_rows = list((await session.execute(updates_stmt)).scalars())
     # Timeline is derived at read-time from lifecycle + heartbeat transitions
     # + audit events (admin variant). heartbeats / similar remain empty for
     # v0.1 polish (plan §OOS — Phase 3 work). The frontend
     # (AdminIncidentResponse) expects all three keys to be iterable.
     timeline = await build_admin_timeline(session, row)
+    incident_out = IncidentAdminOut.model_validate(row)
+    # Override updates with the explicitly queried list (reverse-chronological).
+    incident_out.updates = [IncidentUpdateOut.model_validate(u) for u in updates_rows]
     return {
-        "incident": IncidentAdminOut.model_validate(row),
+        "incident": incident_out,
         "timeline": timeline,
         "heartbeats": [],
         "similar": [],
     }
+
+
+@router.post("/{incident_id}/updates")
+async def add_update(
+    incident_id: int,
+    payload: IncidentUpdateCreate,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, IncidentUpdateOut]:
+    admin = await require_admin_row(request, session)
+    row = await session.get(Incident, incident_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    update = IncidentUpdate(
+        incident_id=incident_id,
+        kind=IncidentUpdateKind.manual,
+        text=payload.text,
+        status_snapshot=None,
+        author_id=admin.id,
+    )
+    session.add(update)
+    await session.flush()
+    await audit(
+        session,
+        event="admin.incident.update_added",
+        actor_type="admin",
+        actor_id=str(admin.id),
+        ip=client_ip(request),
+        details={"incident_id": incident_id, "update_id": update.id},
+    )
+    await session.commit()
+    await session.refresh(update)
+    return {"update": IncidentUpdateOut.model_validate(update)}
+
+
+@router.patch("/{incident_id}/summary")
+async def edit_summary(
+    incident_id: int,
+    payload: IncidentSummaryEdit,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, IncidentAdminOut]:
+    admin = await require_admin_row(request, session)
+    row = await session.get(Incident, incident_id)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
+    row.summary = payload.summary
+    session.add(row)
+    await audit(
+        session,
+        event="admin.incident.summary_edited",
+        actor_type="admin",
+        actor_id=str(admin.id),
+        ip=client_ip(request),
+        details={"incident_id": incident_id},
+    )
+    await session.commit()
+    await session.refresh(row)
+    # Load updates for the response.
+    updates_stmt = (
+        select(IncidentUpdate)
+        .where(IncidentUpdate.incident_id == incident_id)
+        .order_by(IncidentUpdate.t.desc())
+    )
+    updates_rows = list((await session.execute(updates_stmt)).scalars())
+    incident_out = IncidentAdminOut.model_validate(row)
+    incident_out.updates = [IncidentUpdateOut.model_validate(u) for u in updates_rows]
+    return {"incident": incident_out}
 
 
 @router.post("/{incident_id}/regenerate")

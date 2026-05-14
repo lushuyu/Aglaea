@@ -21,6 +21,7 @@ from aglaea.models import (  # noqa: F401  -- import side effects register table
     api_keys,
     audit,
     heartbeat,
+    incident_updates,
     incidents,
     services,
 )

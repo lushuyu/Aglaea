@@ -7,8 +7,9 @@ import pytest
 from aglaea.workers.report_generator import ReportTrigger, run_trigger
 
 
-def test_enum_priority_ordering_t3_t0_t1_t2() -> None:
-    assert ReportTrigger.FINAL.value > ReportTrigger.INITIAL.value
+def test_enum_priority_ordering_t3_t25_t0_t1_t2() -> None:
+    assert ReportTrigger.FINAL.value > ReportTrigger.NEW_WORST.value
+    assert ReportTrigger.NEW_WORST.value > ReportTrigger.INITIAL.value
     assert ReportTrigger.INITIAL.value > ReportTrigger.SUBCHECK_CHANGED.value
     assert ReportTrigger.SUBCHECK_CHANGED.value > ReportTrigger.PERIODIC.value
 
@@ -24,11 +25,11 @@ def test_enum_pick_empty_returns_none() -> None:
     assert ReportTrigger.pick([]) is None
 
 
-def test_enum_has_four_members() -> None:
+def test_enum_has_five_members() -> None:
     members = list(ReportTrigger)
-    assert len(members) == 4
+    assert len(members) == 5
     names = {m.name for m in members}
-    assert names == {"INITIAL", "SUBCHECK_CHANGED", "PERIODIC", "FINAL"}
+    assert names == {"INITIAL", "SUBCHECK_CHANGED", "PERIODIC", "FINAL", "NEW_WORST"}
 
 
 @pytest.mark.asyncio
