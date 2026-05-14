@@ -60,7 +60,7 @@ jobs:
 
       - name: Install backend dependencies
         working-directory: backend
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: Ruff lint
         working-directory: backend
@@ -80,7 +80,7 @@ jobs:
 
       - name: pytest
         working-directory: backend
-        run: uv run pytest -v --tb=short --cov=aglaea --cov-report=term-missing
+        run: uv run pytest -v --tb=short
 
       # Custom backend lints
       - name: argon2 sync-wrap guard
@@ -189,7 +189,7 @@ jobs:
 
       - name: Install backend deps
         working-directory: backend
-        run: uv sync --frozen
+        run: uv sync --frozen --extra dev
 
       - name: npm ci (for openapi-typescript)
         working-directory: frontend
