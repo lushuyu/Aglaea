@@ -86,7 +86,14 @@ jobs:
       - name: argon2 sync-wrap guard
         working-directory: backend
         run: |
-          result=$(grep -rn "\.verify(" aglaea/ | grep -v "asyncio.to_thread" | grep -v "#" | grep -v "test_" || true)
+          # Match `<wordchar>.verify(` only so docstring text like
+          # `Hasher().verify(...)` doesn't false-positive. Filter to *.py to
+          # skip cached .pyc bytecode. Lines with `# allow-sync-verify` are
+          # the sanctioned site (gated by _verify_in_thread → asyncio.to_thread).
+          result=$(grep -rEn --include='*.py' "[a-zA-Z_]\.verify\(" aglaea/ \
+            | grep -v "asyncio.to_thread" \
+            | grep -v "allow-sync-verify" \
+            | grep -v "test_" || true)
           if [ -n "$result" ]; then
             echo "ERROR: argon2 .verify() called without asyncio.to_thread:"
             echo "$result"

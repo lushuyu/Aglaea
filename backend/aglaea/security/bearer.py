@@ -54,7 +54,7 @@ def generate_key() -> GeneratedKey:
 def _verify_sync(hashed: str, plaintext: str) -> bool:
     """Synchronous argon2id verify. Only call from `_verify_in_thread`."""
     try:
-        return _hasher.verify(hashed, plaintext)
+        return _hasher.verify(hashed, plaintext)  # allow-sync-verify
     except VerifyMismatchError:
         return False
     except Exception:  # noqa: BLE001 — argon2 raises a variety on malformed
