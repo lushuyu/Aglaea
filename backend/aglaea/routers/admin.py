@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -33,9 +33,7 @@ async def list_services(
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, list[ServiceAdminOut]]:
     await require_admin_row(request, session)
-    rows = list(
-        (await session.execute(select(Service).order_by(Service.display_name))).scalars()
-    )
+    rows = list((await session.execute(select(Service).order_by(Service.display_name))).scalars())
     return {"services": [ServiceAdminOut.model_validate(r) for r in rows]}
 
 
@@ -82,9 +80,7 @@ async def create_service(
 
 
 async def _get_service_by_slug(session: AsyncSession, slug: str) -> Service:
-    row = (
-        await session.execute(select(Service).where(Service.slug == slug))
-    ).scalar_one_or_none()
+    row = (await session.execute(select(Service).where(Service.slug == slug))).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     return row
@@ -99,11 +95,7 @@ async def get_service(
     await require_admin_row(request, session)
     service = await _get_service_by_slug(session, slug)
     api_keys = list(
-        (
-            await session.execute(
-                select(ApiKey).where(ApiKey.service_id == service.id)
-            )
-        ).scalars()
+        (await session.execute(select(ApiKey).where(ApiKey.service_id == service.id))).scalars()
     )
     incidents = list(
         (
@@ -135,7 +127,7 @@ async def update_service(
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(service, key, value)
-    service.updated_at = datetime.now(timezone.utc)
+    service.updated_at = datetime.now(UTC)
     session.add(service)
 
     await audit(

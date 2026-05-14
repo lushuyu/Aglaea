@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ARRAY, BigInteger, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,19 +18,19 @@ if TYPE_CHECKING:
     from aglaea.models.incident_updates import IncidentUpdate
 
 
-class IncidentStatus(str, enum.Enum):
+class IncidentStatus(enum.StrEnum):
     ongoing = "ongoing"
     resolved = "resolved"
 
 
-class IncidentReportState(str, enum.Enum):
+class IncidentReportState(enum.StrEnum):
     none = "none"
     draft = "draft"
     published = "published"
     rejected = "rejected"
 
 
-class IncidentLifecycleState(str, enum.Enum):
+class IncidentLifecycleState(enum.StrEnum):
     investigating = "investigating"
     identified = "identified"
     monitoring = "monitoring"
@@ -41,9 +41,7 @@ class Incident(Base):
     __tablename__ = "incidents"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    service_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("services.id"), nullable=False
-    )
+    service_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("services.id"), nullable=False)
     status: Mapped[IncidentStatus] = mapped_column(
         Enum(IncidentStatus, name="incident_status", create_type=False),
         nullable=False,
@@ -51,12 +49,8 @@ class Incident(Base):
     )
     started_at: Mapped[datetime] = mapped_column(nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    initial_failure_payload: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
-    final_recovery_payload: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
+    initial_failure_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    final_recovery_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     affected_subchecks: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )
@@ -80,12 +74,8 @@ class Incident(Base):
     published_by: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("admin_users.id"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     lifecycle_state: Mapped[IncidentLifecycleState] = mapped_column(
         Enum(IncidentLifecycleState, name="incident_lifecycle_state", create_type=False),
@@ -93,7 +83,7 @@ class Incident(Base):
         server_default="investigating",
     )
 
-    updates: Mapped[list["IncidentUpdate"]] = relationship(
+    updates: Mapped[list[IncidentUpdate]] = relationship(
         back_populates="incident",
         cascade="all, delete-orphan",
         order_by="IncidentUpdate.t.asc()",

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from pydantic import ValidationError
 
@@ -14,9 +12,7 @@ from aglaea.schemas.heartbeat import HeartbeatIn
 def test_strict_mode_rejects_unknown_fields() -> None:
     """Pydantic strict, extras → 400 (manifests as ValidationError)."""
     with pytest.raises(ValidationError):
-        HeartbeatIn.model_validate(
-            {"status": "ok", "unknown_field": "boom"}
-        )
+        HeartbeatIn.model_validate({"status": "ok", "unknown_field": "boom"})
 
 
 def test_accepts_minimal_payload() -> None:

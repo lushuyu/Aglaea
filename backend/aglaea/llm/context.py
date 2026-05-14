@@ -22,7 +22,7 @@ The three attack patterns covered by `tests/test_llm_context_allowlist.py`:
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import desc, select
@@ -74,7 +74,7 @@ def _service_view(service: Service) -> dict[str, Any]:
         "kind": service.kind.value if service.kind else None,
         "deepseek_context": service.deepseek_context,
     }
-    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_SERVICE))
+    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_SERVICE))  # type: ignore[no-any-return]
 
 
 def _incident_view(incident: Incident) -> dict[str, Any]:
@@ -86,7 +86,7 @@ def _incident_view(incident: Incident) -> dict[str, Any]:
         "affected_subchecks": list(incident.affected_subchecks or []),
         "report_generation_count": incident.report_generation_count,
     }
-    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_INCIDENT))
+    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_INCIDENT))  # type: ignore[no-any-return]
 
 
 def _heartbeat_view(event: HeartbeatEvent) -> dict[str, Any]:
@@ -96,7 +96,7 @@ def _heartbeat_view(event: HeartbeatEvent) -> dict[str, Any]:
         "subchecks": event.subchecks,
         "message": event.message,
     }
-    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_HEARTBEAT))
+    return _sanitise_user_text(_project(raw, LLM_CONTEXT_FIELDS_HEARTBEAT))  # type: ignore[no-any-return]
 
 
 async def build_incident_context(
@@ -129,7 +129,7 @@ async def build_incident_context(
     heartbeats = list((await session.execute(hb_stmt)).scalars())
 
     # Recent similar incidents for the same service (30d, allowlist projection).
-    cutoff = datetime.now(timezone.utc).replace(microsecond=0)
+    cutoff = datetime.now(UTC).replace(microsecond=0)
     sim_stmt = (
         select(Incident)
         .where(

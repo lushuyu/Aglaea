@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from aglaea.config import HTTPX_DEFAULT_TIMEOUT_SECONDS, get_settings
 from aglaea.db import get_session
 from aglaea.models.incident_updates import IncidentUpdate
-from aglaea.models.incidents import Incident, IncidentLifecycleState, IncidentStatus
+from aglaea.models.incidents import Incident, IncidentLifecycleState
 from aglaea.models.services import Service
 from aglaea.promql import ALLOWED_PUBLIC_METRICS, PUBLIC_QUERIES
 from aglaea.schemas.public import (
@@ -82,12 +82,14 @@ async def list_incidents(
                 PublicIncidentPublished(
                     id=inc.id,
                     service_slug=service.slug,
-                    status=inc.status.value,  # type: ignore[arg-type]
+                    status=inc.status.value,
                     started_at=inc.started_at,
                     resolved_at=inc.resolved_at,
                     affected_subchecks=list(inc.affected_subchecks or []),
                     published_text=inc.published_text,
                     published_at=inc.published_at,
+                    summary=inc.summary,
+                    updates=[],
                 )
             )
         else:
@@ -95,7 +97,7 @@ async def list_incidents(
                 PublicIncidentSkeleton(
                     id=inc.id,
                     service_slug=service.slug,
-                    status=inc.status.value,  # type: ignore[arg-type]
+                    status=inc.status.value,
                     started_at=inc.started_at,
                     resolved_at=inc.resolved_at,
                     affected_subchecks=list(inc.affected_subchecks or []),
@@ -139,7 +141,7 @@ async def list_active_incidents(
                 PublicIncidentPublished(
                     id=inc.id,
                     service_slug=service.slug,
-                    status=inc.status.value,  # type: ignore[arg-type]
+                    status=inc.status.value,
                     started_at=inc.started_at,
                     resolved_at=inc.resolved_at,
                     affected_subchecks=list(inc.affected_subchecks or []),
@@ -154,7 +156,7 @@ async def list_active_incidents(
                 PublicIncidentSkeleton(
                     id=inc.id,
                     service_slug=service.slug,
-                    status=inc.status.value,  # type: ignore[arg-type]
+                    status=inc.status.value,
                     started_at=inc.started_at,
                     resolved_at=inc.resolved_at,
                     affected_subchecks=list(inc.affected_subchecks or []),
@@ -196,26 +198,24 @@ async def get_incident(
         )
         upd_rows = list((await session.execute(upd_stmt)).scalars())
         updates = [PublicIncidentUpdate.model_validate(u) for u in upd_rows]
-        inc_payload: PublicIncidentPublished | PublicIncidentSkeleton = (
-            PublicIncidentPublished(
-                id=incident.id,
-                service_slug=service.slug,
-                status=incident.status.value,  # type: ignore[arg-type]
-                started_at=incident.started_at,
-                resolved_at=incident.resolved_at,
-                affected_subchecks=list(incident.affected_subchecks or []),
-                published_text=incident.published_text,
-                published_at=incident.published_at,
-                summary=incident.summary,
-                updates=updates,
-            )
+        inc_payload: PublicIncidentPublished | PublicIncidentSkeleton = PublicIncidentPublished(
+            id=incident.id,
+            service_slug=service.slug,
+            status=incident.status.value,
+            started_at=incident.started_at,
+            resolved_at=incident.resolved_at,
+            affected_subchecks=list(incident.affected_subchecks or []),
+            published_text=incident.published_text,
+            published_at=incident.published_at,
+            summary=incident.summary,
+            updates=updates,
         )
         timeline = list(await build_public_timeline(session, incident))
     else:
         inc_payload = PublicIncidentSkeleton(
             id=incident.id,
             service_slug=service.slug,
-            status=incident.status.value,  # type: ignore[arg-type]
+            status=incident.status.value,
             started_at=incident.started_at,
             resolved_at=incident.resolved_at,
             affected_subchecks=list(incident.affected_subchecks or []),
@@ -268,7 +268,7 @@ async def get_service_uptime(
     # Generate full date range (oldest → newest)
     import datetime
 
-    today_utc = datetime.datetime.now(datetime.timezone.utc).date()
+    today_utc = datetime.datetime.now(datetime.UTC).date()
     start = today_utc - datetime.timedelta(days=days - 1)
     output: list[dict[str, str]] = []
     for i in range(days):
@@ -282,9 +282,7 @@ async def get_service_uptime(
 async def claude_code_series(metric: str) -> dict[str, object]:
     """Pre-defined aggregated metric. `host.name` already stripped (C8)."""
     if metric not in ALLOWED_PUBLIC_METRICS:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="unknown metric"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unknown metric")
     query = PUBLIC_QUERIES[metric]
     settings = get_settings()
     url = f"{settings.vm_url.rstrip('/')}/api/v1/query"

@@ -65,9 +65,7 @@ class DeepSeekClient:
             raise DeepSeekError(f"transport: {exc}") from exc
 
         if response.status_code >= 400:
-            raise DeepSeekError(
-                f"http {response.status_code}: {response.text[:500]}"
-            )
+            raise DeepSeekError(f"http {response.status_code}: {response.text[:500]}")
 
         try:
             body = response.json()

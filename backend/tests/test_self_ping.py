@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
-from aglaea.config import Settings
 from aglaea.workers.self_ping import _ping_once
 
 

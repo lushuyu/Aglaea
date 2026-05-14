@@ -8,13 +8,15 @@ Create Date: 2026-05-13
 TimescaleDB-specific DDL (hypertable, compression, retention) appears ONLY inside
 raw-SQL blocks tagged `# === TimescaleDB-specific (manual) ===` per AC1.3.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0001_initial"
 down_revision: str | None = None
@@ -26,8 +28,7 @@ def upgrade() -> None:
     op.execute("CREATE TYPE service_kind AS ENUM ('push', 'pull');")
     op.execute("CREATE TYPE incident_status AS ENUM ('ongoing', 'resolved');")
     op.execute(
-        "CREATE TYPE incident_report_state AS ENUM "
-        "('none', 'draft', 'published', 'rejected');"
+        "CREATE TYPE incident_report_state AS ENUM ('none', 'draft', 'published', 'rejected');"
     )
 
     op.create_table(
@@ -112,10 +113,7 @@ def upgrade() -> None:
             name="pull_must_have_url",
         ),
     )
-    op.execute(
-        "CREATE INDEX idx_services_public ON services(public_visible) "
-        "WHERE public_visible;"
-    )
+    op.execute("CREATE INDEX idx_services_public ON services(public_visible) WHERE public_visible;")
 
     op.create_table(
         "api_keys",
@@ -139,10 +137,7 @@ def upgrade() -> None:
         sa.Column("revoked_at", sa.TIMESTAMP(timezone=True), nullable=True),
         sa.UniqueConstraint("service_id", "label", name="uq_api_keys_service_label"),
     )
-    op.execute(
-        "CREATE INDEX idx_api_keys_active ON api_keys(service_id) "
-        "WHERE revoked_at IS NULL;"
-    )
+    op.execute("CREATE INDEX idx_api_keys_active ON api_keys(service_id) WHERE revoked_at IS NULL;")
     op.execute("CREATE INDEX idx_api_keys_prefix ON api_keys(key_prefix);")
 
     op.create_table(
@@ -174,9 +169,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "status",
-            postgresql.ENUM(
-                "ongoing", "resolved", name="incident_status", create_type=False
-            ),
+            postgresql.ENUM("ongoing", "resolved", name="incident_status", create_type=False),
             nullable=False,
             server_default=sa.text("'ongoing'::incident_status"),
         ),
@@ -234,8 +227,7 @@ def upgrade() -> None:
         ),
     )
     op.execute(
-        "CREATE INDEX idx_incidents_service_started "
-        "ON incidents(service_id, started_at DESC);"
+        "CREATE INDEX idx_incidents_service_started ON incidents(service_id, started_at DESC);"
     )
     op.execute(
         "CREATE INDEX idx_incidents_ongoing "
@@ -282,9 +274,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     # === TimescaleDB-specific (manual) — reverse order ===
     op.execute("SELECT remove_retention_policy('heartbeat_events', if_exists => true);")
-    op.execute(
-        "SELECT remove_compression_policy('heartbeat_events', if_exists => true);"
-    )
+    op.execute("SELECT remove_compression_policy('heartbeat_events', if_exists => true);")
     op.execute("ALTER TABLE heartbeat_events SET (timescaledb.compress = false);")
     op.execute("DROP TABLE IF EXISTS heartbeat_events CASCADE;")
 

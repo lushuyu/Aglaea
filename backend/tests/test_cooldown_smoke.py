@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timezone, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from aglaea.workers.incident_detector import (
-    _DEEPSEEK_COOLDOWN,
-    _COOLDOWN_TTL_SECONDS,
-    _maybe_close,
-    PUSH_LOSS_SENTINEL,
-)
 from aglaea.models.incidents import IncidentLifecycleState
+from aglaea.workers.incident_detector import (
+    _COOLDOWN_TTL_SECONDS,
+    _DEEPSEEK_COOLDOWN,
+    PUSH_LOSS_SENTINEL,
+    _maybe_close,
+)
 
 
 def test_cooldown_ttl_constant() -> None:
@@ -28,6 +27,7 @@ def test_cooldown_map_is_dict() -> None:
 # ---------------------------------------------------------------------------
 # Helpers to build mock objects for _maybe_close
 # ---------------------------------------------------------------------------
+
 
 def _make_service(interval: int = 60) -> MagicMock:
     svc = MagicMock()
@@ -58,15 +58,13 @@ def _make_heartbeat(ts: datetime, status: str = "ok", subchecks: dict | None = N
 # Test: 6 evenly-spaced ok heartbeats → should close
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_maybe_close_returns_true_when_all_ok() -> None:
     """6 heartbeats evenly spaced over 5 min, all ok → close."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # 6 heartbeats, one every 60s, covering the last 5 minutes.
-    heartbeats = [
-        _make_heartbeat(now - timedelta(seconds=300 - i * 60))
-        for i in range(6)
-    ]
+    heartbeats = [_make_heartbeat(now - timedelta(seconds=300 - i * 60)) for i in range(6)]
 
     service = _make_service(interval=60)
     incident = _make_incident(affected=["moomoo"])
@@ -91,10 +89,11 @@ async def test_maybe_close_returns_true_when_all_ok() -> None:
 # Test: gap > 2×interval in middle → should NOT close
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_maybe_close_returns_false_on_gap() -> None:
     """Heartbeats with a gap > 2×60=120s in the middle → returns False."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     # 6 heartbeats in ascending order with a 130s gap between index 2 and 3.
     # Positions (seconds before now): 290, 230, 170, 40, 20, 0
     # Gap between 170s-ago and 40s-ago = 130s > 120s (2×60).
@@ -102,7 +101,7 @@ async def test_maybe_close_returns_false_on_gap() -> None:
         now - timedelta(seconds=290),
         now - timedelta(seconds=230),
         now - timedelta(seconds=170),
-        now - timedelta(seconds=40),   # 130s gap from previous → exceeds tolerance
+        now - timedelta(seconds=40),  # 130s gap from previous → exceeds tolerance
         now - timedelta(seconds=20),
         now - timedelta(seconds=0),
     ]
@@ -126,13 +125,13 @@ async def test_maybe_close_returns_false_on_gap() -> None:
 # Test: affected empty after sentinel strip → vacuously closes (no failing subchecks)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_maybe_close_empty_affected_closes() -> None:
     """Incident with only the push-loss sentinel → affected empty after strip → closes."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     heartbeats = [
-        _make_heartbeat(now - timedelta(seconds=300 - i * 60), subchecks={})
-        for i in range(6)
+        _make_heartbeat(now - timedelta(seconds=300 - i * 60), subchecks={}) for i in range(6)
     ]
 
     service = _make_service(interval=60)

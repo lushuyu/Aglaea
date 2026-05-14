@@ -6,7 +6,7 @@ All verify operations elsewhere wrap argon2 in `asyncio.to_thread`.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
@@ -25,13 +25,9 @@ router = APIRouter(prefix="/api/admin/services", tags=["admin-keys"])
 
 
 async def _service_by_slug(session: AsyncSession, slug: str) -> Service:
-    row = (
-        await session.execute(select(Service).where(Service.slug == slug))
-    ).scalar_one_or_none()
+    row = (await session.execute(select(Service).where(Service.slug == slug))).scalar_one_or_none()
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="service not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service not found")
     return row
 
 
@@ -43,11 +39,7 @@ async def list_keys(
 ) -> list[ApiKeyOut]:
     await require_admin_row(request, session)
     service = await _service_by_slug(session, slug)
-    stmt = (
-        select(ApiKey)
-        .where(ApiKey.service_id == service.id)
-        .order_by(ApiKey.created_at.desc())
-    )
+    stmt = select(ApiKey).where(ApiKey.service_id == service.id).order_by(ApiKey.created_at.desc())
     rows = list((await session.execute(stmt)).scalars())
     return [ApiKeyOut.model_validate(r) for r in rows]
 
@@ -119,14 +111,12 @@ async def revoke_key(
 ) -> None:
     admin = await require_admin_row(request, session)
     service = await _service_by_slug(session, slug)
-    stmt = select(ApiKey).where(
-        ApiKey.id == key_id, ApiKey.service_id == service.id
-    )
+    stmt = select(ApiKey).where(ApiKey.id == key_id, ApiKey.service_id == service.id)
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="not found")
     if row.revoked_at is None:
-        row.revoked_at = datetime.now(timezone.utc)
+        row.revoked_at = datetime.now(UTC)
         session.add(row)
     await audit(
         session,

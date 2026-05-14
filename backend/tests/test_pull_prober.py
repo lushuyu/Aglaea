@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from aglaea.config import CERT_WARN_DAYS
 from aglaea.workers.pull_prober import _cert_days_remaining
@@ -13,13 +13,13 @@ def _format_not_after(when: datetime) -> str:
 
 
 def test_days_remaining_far_future() -> None:
-    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=UTC)
     cert = {"notAfter": _format_not_after(now + timedelta(days=365))}
     assert (_cert_days_remaining(cert, now) or 0) >= 360
 
 
 def test_days_remaining_inside_warn_window() -> None:
-    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=UTC)
     cert = {"notAfter": _format_not_after(now + timedelta(days=CERT_WARN_DAYS - 3))}
     days = _cert_days_remaining(cert, now)
     assert days is not None
@@ -27,7 +27,7 @@ def test_days_remaining_inside_warn_window() -> None:
 
 
 def test_days_remaining_expired_returns_negative() -> None:
-    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=UTC)
     cert = {"notAfter": _format_not_after(now - timedelta(days=1))}
     days = _cert_days_remaining(cert, now)
     assert days is not None
@@ -35,7 +35,7 @@ def test_days_remaining_expired_returns_negative() -> None:
 
 
 def test_days_remaining_malformed_returns_none() -> None:
-    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 5, 13, 12, 0, 0, tzinfo=UTC)
     assert _cert_days_remaining({}, now) is None
     assert _cert_days_remaining({"notAfter": "not-a-date"}, now) is None
 

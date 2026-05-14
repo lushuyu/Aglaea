@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 log = logging.getLogger(__name__)
 
 GITHUB_AUTHORIZE = "https://github.com/login/oauth/authorize"
-GITHUB_TOKEN = "https://github.com/login/oauth/access_token"
+GITHUB_TOKEN = "https://github.com/login/oauth/access_token"  # noqa: S105 — OAuth endpoint URL, not a secret
 GITHUB_USER = "https://api.github.com/user"
 OAUTH_STATE_KEY = "oauth_state"
 SESSION_USER_KEY = "admin_user"
@@ -65,9 +65,7 @@ async def github_callback(
     settings = get_settings()
     expected = request.session.get(OAUTH_STATE_KEY)
     if not expected or not secrets.compare_digest(expected, state):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="invalid state"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="invalid state")
     request.session.pop(OAUTH_STATE_KEY, None)
 
     async with httpx.AsyncClient(timeout=HTTPX_DEFAULT_TIMEOUT_SECONDS) as client:
@@ -82,15 +80,16 @@ async def github_callback(
             headers={"Accept": "application/json"},
         )
         if token_response.status_code >= 400:
-            log.warning("auth.github.token_exchange_failed", extra={"status": token_response.status_code})
+            log.warning(
+                "auth.github.token_exchange_failed",
+                extra={"status": token_response.status_code},
+            )
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY, detail="token exchange failed"
             )
         access_token = token_response.json().get("access_token")
         if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail="no access_token"
-            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="no access_token")
 
         user_response = await client.get(
             GITHUB_USER,
@@ -100,17 +99,13 @@ async def github_callback(
             },
         )
         if user_response.status_code >= 400:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail="user fetch failed"
-            )
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="user fetch failed")
         user_data = user_response.json()
 
     github_login_value = str(user_data.get("login", "")).strip()
     github_id_raw = user_data.get("id")
     if not github_login_value or not isinstance(github_id_raw, int):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail="invalid user payload"
-        )
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="invalid user payload")
 
     ip = request.client.host if request.client else None
     admin = await enforce_admin_allowlist(
@@ -146,9 +141,7 @@ async def me(
     admin = await find_active_admin(session, github_login=login) if login else None
     if admin is None:
         request.session.pop(SESSION_USER_KEY, None)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="not authorized"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not authorized")
     return JSONResponse(
         {
             "id": admin.id,

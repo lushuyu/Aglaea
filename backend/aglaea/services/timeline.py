@@ -71,9 +71,7 @@ async def _incident_lifecycle_events(incident: Incident) -> list[dict[str, Any]]
     return rows
 
 
-async def _heartbeat_transitions(
-    session: AsyncSession, incident: Incident
-) -> list[dict[str, Any]]:
+async def _heartbeat_transitions(session: AsyncSession, incident: Incident) -> list[dict[str, Any]]:
     """Emit one row per per-subcheck status flip inside the incident window.
 
     Window: ``incident.started_at <= ts <= COALESCE(resolved_at, now())``.
@@ -141,9 +139,7 @@ async def _heartbeat_transitions(
     return rows
 
 
-async def _audit_events(
-    session: AsyncSession, incident_id: int
-) -> list[dict[str, Any]]:
+async def _audit_events(session: AsyncSession, incident_id: int) -> list[dict[str, Any]]:
     """ADMIN-ONLY. Query audit_log rows scoped to this incident.
 
     Predicate: ``audit_log.details ->> 'incident_id' = :iid``.
@@ -154,11 +150,7 @@ async def _audit_events(
     predicate = AuditLog.details.op("->>")("incident_id") == bindparam(
         "iid", value=str(incident_id), type_=None
     )
-    stmt = (
-        select(AuditLog)
-        .where(predicate)
-        .order_by(asc(AuditLog.ts))
-    )
+    stmt = select(AuditLog).where(predicate).order_by(asc(AuditLog.ts))
     audit_rows = list((await session.execute(stmt)).scalars())
 
     out: list[dict[str, Any]] = []
@@ -171,7 +163,7 @@ async def _audit_events(
                 if isinstance(raw, str):
                     # Snippet only — full text lives in audit_log.
                     instr = raw[:200]
-            row = {
+            row: dict[str, str | None] = {
                 "t": _iso(r.ts),
                 "sub": "admin",
                 "status": "regenerate_requested",
@@ -205,9 +197,7 @@ async def _audit_events(
     return out
 
 
-async def _select_transitions(
-    session: AsyncSession, incident: Incident
-) -> list[dict[str, Any]]:
+async def _select_transitions(session: AsyncSession, incident: Incident) -> list[dict[str, Any]]:
     """Return state-transition timeline events using the C2 boundary rule.
 
     When ``_PREFER_PERSISTED_TRANSITIONS`` is True and persisted
@@ -254,9 +244,7 @@ async def _select_transitions(
     return await _heartbeat_transitions(session, incident)
 
 
-async def build_admin_timeline(
-    session: AsyncSession, incident: Incident
-) -> list[dict[str, Any]]:
+async def build_admin_timeline(session: AsyncSession, incident: Incident) -> list[dict[str, Any]]:
     """Admin variant: lifecycle + heartbeat transitions + audit events.
 
     Returns rows sorted ascending by ``t``.
@@ -272,9 +260,7 @@ async def build_admin_timeline(
     return merged
 
 
-async def build_public_timeline(
-    session: AsyncSession, incident: Incident
-) -> list[dict[str, Any]]:
+async def build_public_timeline(session: AsyncSession, incident: Incident) -> list[dict[str, Any]]:
     """Public variant: lifecycle + heartbeat transitions ONLY.
 
     Intentionally NEVER touches the admin-only audit helper — structural

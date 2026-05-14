@@ -28,7 +28,7 @@ class _RequestIdFilter(logging.Filter):
         return True
 
 
-class _AglaeaJsonFormatter(jsonlogger.JsonFormatter):  # type: ignore[misc]
+class _AglaeaJsonFormatter(jsonlogger.JsonFormatter):  # type: ignore[name-defined,misc]
     """python-json-logger formatter that always emits required keys."""
 
     def add_fields(
@@ -54,9 +54,7 @@ def configure_logging(level: str = "INFO") -> None:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
-        _AglaeaJsonFormatter(
-            fmt="%(timestamp)s %(level)s %(logger)s %(message)s %(request_id)s"
-        )
+        _AglaeaJsonFormatter(fmt="%(timestamp)s %(level)s %(logger)s %(message)s %(request_id)s")
     )
     handler.addFilter(_RequestIdFilter())
 

@@ -23,12 +23,8 @@ class ApiKey(Base):
     label: Mapped[str] = mapped_column(Text, nullable=False)
     key_hash: Mapped[str] = mapped_column(Text, nullable=False)
     key_prefix: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     last_used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     revoked_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    __table_args__ = (
-        UniqueConstraint("service_id", "label", name="uq_api_keys_service_label"),
-    )
+    __table_args__ = (UniqueConstraint("service_id", "label", name="uq_api_keys_service_label"),)

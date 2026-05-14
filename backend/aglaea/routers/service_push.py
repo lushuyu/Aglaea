@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import ValidationError
@@ -31,7 +31,6 @@ from aglaea.routers._deps import client_ip
 from aglaea.schemas.heartbeat import HeartbeatIn
 from aglaea.security.audit import audit
 from aglaea.security.bearer import verify_bearer
-from aglaea.security.timestamp import HEADER_NAME as TS_HEADER
 from aglaea.security.timestamp import verify_x_aglaea_timestamp
 
 router = APIRouter(prefix="/api/v1", tags=["service-push"])
@@ -62,9 +61,7 @@ async def post_heartbeat(
             detail=f"heartbeat body exceeds {HEARTBEAT_BODY_MAX_BYTES} bytes",
         )
 
-    await verify_x_aglaea_timestamp(
-        x_aglaea_timestamp, session=session, ip=ip
-    )
+    await verify_x_aglaea_timestamp(x_aglaea_timestamp, session=session, ip=ip)
 
     if not authorization or not authorization.startswith("Bearer "):
         await audit(
@@ -75,9 +72,7 @@ async def post_heartbeat(
             details={"reason": "no_authorization_header"},
         )
         await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="bearer required"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="bearer required")
 
     plaintext = authorization.removeprefix("Bearer ").strip()
     api_key = await verify_bearer(session, plaintext_token=plaintext)
@@ -90,9 +85,7 @@ async def post_heartbeat(
             details={"prefix": plaintext[:8] if plaintext else None},
         )
         await session.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid bearer"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid bearer")
 
     try:
         parsed_body = json.loads(raw_body or b"{}")
@@ -113,11 +106,9 @@ async def post_heartbeat(
     service_stmt = select(Service).where(Service.id == api_key.service_id)
     service = (await session.execute(service_stmt)).scalar_one_or_none()
     if service is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="service missing"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="service missing")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     subchecks_dict = (
         {k: v.model_dump(exclude_none=True) for k, v in payload.subchecks.items()}
         if payload.subchecks

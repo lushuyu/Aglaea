@@ -12,9 +12,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 # Defaults — individual tests override as needed.
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql+asyncpg://aglaea:test@localhost:5432/aglaea_test"
-)
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://aglaea:test@localhost:5432/aglaea_test")
 os.environ.setdefault("SESSION_SECRET", "test-session-secret-very-long-string-value")
 os.environ.setdefault("DEEPSEEK_API_KEY", "")
 os.environ.setdefault("HEALTHCHECKS_SELFPING_URL", "")

@@ -12,13 +12,15 @@ Revision ID: 0002_incident_updates
 Revises: 0001_initial
 Create Date: 2026-05-14
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision: str = "0002_incident_updates"
 down_revision: str | None = "0001_initial"
@@ -33,8 +35,7 @@ def upgrade() -> None:
         "('investigating', 'identified', 'monitoring', 'resolved');"
     )
     op.execute(
-        "CREATE TYPE incident_update_kind AS ENUM "
-        "('state_transition', 'summary_update', 'manual');"
+        "CREATE TYPE incident_update_kind AS ENUM ('state_transition', 'summary_update', 'manual');"
     )
 
     # --- New columns on incidents ---
@@ -93,10 +94,7 @@ def upgrade() -> None:
         ),
         sa.Column("audit_event_id", sa.BigInteger(), nullable=True),
     )
-    op.execute(
-        "CREATE INDEX ix_incident_updates_incident_t "
-        "ON incident_updates (incident_id, t);"
-    )
+    op.execute("CREATE INDEX ix_incident_updates_incident_t ON incident_updates (incident_id, t);")
 
 
 def downgrade() -> None:

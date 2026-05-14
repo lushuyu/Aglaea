@@ -16,7 +16,7 @@ or restart (env-var-triggered idempotent INSERT recreates row if absent).
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -39,9 +39,7 @@ class AllowlistRejection(HTTPException):
         )
 
 
-async def find_active_admin(
-    session: AsyncSession, *, github_login: str
-) -> AdminUser | None:
+async def find_active_admin(session: AsyncSession, *, github_login: str) -> AdminUser | None:
     """Return the live row matching `github_login`, or None if absent / deleted."""
     stmt = select(AdminUser).where(
         AdminUser.github_login == github_login,
@@ -50,9 +48,7 @@ async def find_active_admin(
     return (await session.execute(stmt)).scalar_one_or_none()
 
 
-async def find_any_row_by_login(
-    session: AsyncSession, *, github_login: str
-) -> AdminUser | None:
+async def find_any_row_by_login(session: AsyncSession, *, github_login: str) -> AdminUser | None:
     """Return any row (including soft-deleted) for bootstrap idempotency."""
     stmt = select(AdminUser).where(AdminUser.github_login == github_login)
     return (await session.execute(stmt)).scalar_one_or_none()
@@ -92,7 +88,7 @@ async def maybe_bootstrap_admin(
     new_row = AdminUser(
         github_login=github_login,
         github_id=github_id,
-        last_login_at=datetime.now(timezone.utc),
+        last_login_at=datetime.now(UTC),
     )
     session.add(new_row)
     await session.flush()
@@ -135,7 +131,7 @@ async def enforce_admin_allowlist(
         await session.commit()
         raise AllowlistRejection()
 
-    row.last_login_at = datetime.now(timezone.utc)
+    row.last_login_at = datetime.now(UTC)
     await audit(
         session,
         event="auth.login",

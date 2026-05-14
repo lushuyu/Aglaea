@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import HTTPException
@@ -69,7 +68,8 @@ async def test_inside_window_accepted() -> None:
     session = _FakeSession()
     now = int(time.time())
     accepted = await verify_x_aglaea_timestamp(
-        str(now - 30), session=session  # type: ignore[arg-type]
+        str(now - 30),
+        session=session,  # type: ignore[arg-type]
     )
     assert accepted == now - 30
     # No audit / commit on success.

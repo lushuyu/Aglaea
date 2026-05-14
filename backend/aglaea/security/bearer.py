@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Final
 
 from argon2 import PasswordHasher
@@ -95,9 +95,7 @@ async def verify_bearer(
     for row in candidates:
         if await _verify_in_thread(row.key_hash, plaintext_token):
             await session.execute(
-                update(ApiKey)
-                .where(ApiKey.id == row.id)
-                .values(last_used_at=datetime.now(timezone.utc))
+                update(ApiKey).where(ApiKey.id == row.id).values(last_used_at=datetime.now(UTC))
             )
             return row
     return None

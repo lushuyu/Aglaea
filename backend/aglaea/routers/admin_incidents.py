@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import desc, select
@@ -164,9 +164,7 @@ async def regenerate(
     # `instruction` key (SSOT — `None` means absent). Legacy `instruction_present`
     # bool is dropped: `details->>'instruction' IS NULL` is the new predicate.
     instruction_sanitised = (
-        _sanitise_user_text(payload.instruction)
-        if payload.instruction is not None
-        else None
+        _sanitise_user_text(payload.instruction) if payload.instruction is not None else None
     )
     await enqueue_report_trigger(
         incident_id,
@@ -205,7 +203,7 @@ async def publish(
         )
 
     row.published_text = row.report_text
-    row.published_at = datetime.now(timezone.utc)
+    row.published_at = datetime.now(UTC)
     row.published_by = admin.id
     row.report_state = IncidentReportState.published
     session.add(row)

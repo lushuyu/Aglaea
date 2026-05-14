@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -11,26 +10,24 @@ from sqlalchemy.orm import sessionmaker
 
 from aglaea.security.auth import AllowlistRejection
 
-
 # ---------------------------------------------------------------------------
 # Minimal in-memory SQLite session fixture for AC1.8 / AC1.9 DB tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 async def async_session():
     """Async SQLite in-memory session — no external DB required."""
-    from aglaea.models.base import Base
     # Ensure all model tables are registered on Base.metadata by importing them.
     import aglaea.models.admin  # noqa: F401
     import aglaea.models.audit  # noqa: F401
+    from aglaea.models.base import Base
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async_session_factory = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session_factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     async with async_session_factory() as session:
         yield session
 
@@ -68,7 +65,7 @@ async def test_soft_deleted_admin_row_rejects_signin(async_session: AsyncSession
     deleted = AdminUser(
         github_login="deleted_user",
         github_id=2,
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=datetime.now(UTC),
     )
     async_session.add(active)
     async_session.add(deleted)

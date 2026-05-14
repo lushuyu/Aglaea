@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from aglaea.middleware.request_id import _REQUEST_ID_VAR
@@ -28,8 +26,8 @@ async def test_audit_injects_request_id_from_contextvar() -> None:
         _REQUEST_ID_VAR.reset(token)
     assert len(captor.added) == 1
     row = captor.added[0]
-    assert getattr(row, "event") == "test.event"
-    details = getattr(row, "details") or {}
+    assert row.event == "test.event"
+    details = row.details or {}
     assert details.get("request_id") == "test-request-id-abc"
 
 
@@ -40,7 +38,7 @@ async def test_audit_request_id_null_when_unset() -> None:
     await audit(captor, event="test.no_request", actor_type="test")  # type: ignore[arg-type]
     assert len(captor.added) == 1
     row = captor.added[0]
-    details = getattr(row, "details") or {}
+    details = row.details or {}
     assert details.get("request_id") is None
 
 
@@ -54,7 +52,7 @@ async def test_audit_caller_supplied_details_preserved() -> None:
         details={"foo": "bar", "n": 42},
     )
     row = captor.added[0]
-    details = getattr(row, "details") or {}
+    details = row.details or {}
     assert details["foo"] == "bar"
     assert details["n"] == 42
     # request_id default still injected.

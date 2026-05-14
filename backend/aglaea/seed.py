@@ -67,9 +67,7 @@ async def _seed_demo() -> None:
             )
             session.add(key_row)
             await session.flush()
-            sys.stdout.write(
-                f"SEED-KEY service={entry['slug']} plaintext={minted.plaintext}\n"
-            )
+            sys.stdout.write(f"SEED-KEY service={entry['slug']} plaintext={minted.plaintext}\n")
 
 
 def _build_parser() -> argparse.ArgumentParser:

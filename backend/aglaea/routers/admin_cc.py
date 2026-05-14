@@ -40,9 +40,7 @@ async def admin_series(
 ) -> dict[str, object]:
     await require_admin_row(request, session)
     if metric not in ALLOWED_ADMIN_METRICS:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="unknown metric"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="unknown metric")
     data = await _query_vm(ADMIN_QUERIES[metric])
     return {"metric": metric, "data": data}
 

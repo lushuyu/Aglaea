@@ -33,6 +33,4 @@ class HeartbeatEvent(Base):
     source: Mapped[str] = mapped_column(Text, nullable=False)
     client_ts: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    __table_args__ = (
-        PrimaryKeyConstraint("service_id", "ts", name="pk_heartbeat_events"),
-    )
+    __table_args__ = (PrimaryKeyConstraint("service_id", "ts", name="pk_heartbeat_events"),)

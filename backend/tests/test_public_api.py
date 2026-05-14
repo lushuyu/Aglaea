@@ -4,7 +4,7 @@ Postgres+Timescale containers (covered by test_migrations.py).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from aglaea.schemas.public import (
     PublicHeartbeat,
@@ -31,7 +31,7 @@ def test_public_service_construct_minimal() -> None:
         kind="push",
         last_status="ok",
         last_subchecks=None,
-        last_heartbeat_at=datetime.now(timezone.utc),
+        last_heartbeat_at=datetime.now(UTC),
         public_visible=True,
     )
     assert row.slug == "hyacine"

@@ -134,8 +134,7 @@ def _verify_allowlist_coupling() -> None:
             missing = sorted(allowlist - declared)
             extra = sorted(declared - allowlist)
             raise RuntimeError(
-                f"visibility drift: {model_cls.__name__} != {name} "
-                f"missing={missing} extra={extra}"
+                f"visibility drift: {model_cls.__name__} != {name} missing={missing} extra={extra}"
             )
 
 

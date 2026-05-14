@@ -15,7 +15,7 @@ from sqlalchemy.types import Enum
 from aglaea.models.base import Base
 
 
-class ServiceKind(str, enum.Enum):
+class ServiceKind(enum.StrEnum):
     push = "push"
     pull = "pull"
 
@@ -30,12 +30,8 @@ class Service(Base):
     kind: Mapped[ServiceKind] = mapped_column(
         Enum(ServiceKind, name="service_kind", create_type=False), nullable=False
     )
-    public_visible: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default="true"
-    )
-    expected_interval_seconds: Mapped[int | None] = mapped_column(
-        Integer, nullable=True
-    )
+    public_visible: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    expected_interval_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     probe_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     probe_interval_seconds: Mapped[int | None] = mapped_column(
         Integer, nullable=True, server_default="60"
@@ -51,17 +47,11 @@ class Service(Base):
     last_subchecks: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     last_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     deepseek_context: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
 
     __table_args__ = (
-        CheckConstraint(
-            "slug ~ '^[a-z][a-z0-9-]{1,30}$'", name="slug_format_check"
-        ),
+        CheckConstraint("slug ~ '^[a-z][a-z0-9-]{1,30}$'", name="slug_format_check"),
         CheckConstraint(
             "kind != 'push' OR expected_interval_seconds IS NOT NULL",
             name="push_must_have_interval",

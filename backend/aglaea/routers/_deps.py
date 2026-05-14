@@ -23,9 +23,7 @@ async def require_admin(request: Request) -> dict[str, object]:
     """
     payload = request.session.get(SESSION_USER_KEY)
     if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="not signed in"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="not signed in")
     return dict(payload)
 
 
@@ -37,13 +35,9 @@ async def require_admin_row(
     payload = await require_admin(request)
     login = str(payload.get("github_login", ""))
     if not login:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="malformed session"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="malformed session")
     admin = await find_active_admin(session, github_login=login)
     if admin is None:
         request.session.pop(SESSION_USER_KEY, None)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="not authorized"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="not authorized")
     return admin

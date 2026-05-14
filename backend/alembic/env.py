@@ -10,12 +10,10 @@ import os
 from logging.config import fileConfig
 from typing import Any
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from aglaea.models.base import Base
 from aglaea.models import (  # noqa: F401  -- import side effects register tables
     admin,
     api_keys,
@@ -25,6 +23,8 @@ from aglaea.models import (  # noqa: F401  -- import side effects register table
     incidents,
     services,
 )
+from aglaea.models.base import Base
+from alembic import context
 
 config = context.config
 

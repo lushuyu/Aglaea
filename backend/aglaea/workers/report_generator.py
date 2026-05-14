@@ -27,7 +27,7 @@ import asyncio
 import enum
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -133,12 +133,11 @@ async def _scan_periodic_re_derivation(session: AsyncSession) -> None:
     """Lifespan-startup re-derivation: enqueue T2 for ongoing incidents
     whose `report_generated_at` is older than the periodic window.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     threshold = now - timedelta(seconds=REPORT_PERIODIC_INTERVAL_SECONDS)
     stmt = select(Incident).where(
         Incident.status == IncidentStatus.ongoing,
-        (Incident.report_generated_at.is_(None))
-        | (Incident.report_generated_at < threshold),
+        (Incident.report_generated_at.is_(None)) | (Incident.report_generated_at < threshold),
     )
     incidents = list((await session.execute(stmt)).scalars())
     for incident in incidents:
@@ -174,13 +173,12 @@ async def run_trigger(
 
     # Once published, do not silently regenerate on automatic triggers;
     # admin must explicitly invoke /admin/incidents/{id}/regenerate (INITIAL path).
-    if incident.report_state == IncidentReportState.published:
-        if reason != ReportTrigger.INITIAL:
-            log.info(
-                "report.published.skipping_regen",
-                extra={"incident_id": incident_id, "reason": reason.name},
-            )
-            return
+    if incident.report_state == IncidentReportState.published and reason != ReportTrigger.INITIAL:
+        log.info(
+            "report.published.skipping_regen",
+            extra={"incident_id": incident_id, "reason": reason.name},
+        )
+        return
 
     if incident.report_generation_count >= REPORT_GENERATION_HARD_CAP:
         log.warning(
@@ -234,7 +232,7 @@ async def run_trigger(
         )
         return
 
-    now_ts = datetime.now(timezone.utc)
+    now_ts = datetime.now(UTC)
     # Dual-write: both report_text (existing field) and summary (Phase 2a column).
     # Both carry the same prose; dual-write avoids a same-PR schema migration.
     incident.report_text = narrative

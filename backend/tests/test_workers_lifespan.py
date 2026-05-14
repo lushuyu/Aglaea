@@ -8,6 +8,7 @@ Tests the two-layer defence:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from unittest.mock import AsyncMock
 
 import pytest
@@ -37,10 +38,8 @@ async def test_worker_loop_survives_recoverable_exception(
     )
     await asyncio.sleep(0.2)
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     assert call_count >= 2, f"loop did not survive first exception (calls={call_count})"
     fake_alert.assert_awaited()
@@ -94,10 +93,8 @@ async def test_on_worker_died_callback_silent_on_cancellation(
     task.add_done_callback(_on_worker_died)
     await asyncio.sleep(0.05)
     task.cancel()
-    try:
+    with contextlib.suppress(asyncio.CancelledError):
         await task
-    except asyncio.CancelledError:
-        pass
 
     await asyncio.sleep(0.1)
     assert alerts == [], f"cancellation should not ntfy; got {alerts}"

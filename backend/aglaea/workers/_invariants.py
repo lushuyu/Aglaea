@@ -56,10 +56,7 @@ async def worker_loop(
             )
             await send_alert(
                 title=f"Aglaea worker tick failed: {name}",
-                message=(
-                    f"{type(exc).__name__}: {exc}. "
-                    f"Backing off {backoff:.1f}s then retrying."
-                ),
+                message=(f"{type(exc).__name__}: {exc}. Backing off {backoff:.1f}s then retrying."),
                 priority="high",
             )
             await asyncio.sleep(backoff)

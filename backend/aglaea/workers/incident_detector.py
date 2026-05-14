@@ -19,11 +19,11 @@ T1 (subcheck_changed) is DROPPED per C38 — the detector never enqueues
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from math import ceil
 from typing import Any, Final
 
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aglaea.config import INCIDENT_DETECTOR_TICK_SECONDS
@@ -280,7 +280,7 @@ async def _maybe_close(
     required_count = ceil(300 / expected_interval)
     gap_tolerance_seconds = 2 * expected_interval
 
-    window_end = datetime.now(timezone.utc)
+    window_end = datetime.now(UTC)
     window_start = window_end - timedelta(seconds=300)
 
     # Pull heartbeats in the anchored window, ordered.
@@ -299,7 +299,7 @@ async def _maybe_close(
         return False  # insufficient coverage
 
     # Gap-tolerance check
-    for prev, curr in zip(rows[:-1], rows[1:]):
+    for prev, curr in zip(rows[:-1], rows[1:], strict=False):
         if (curr.ts - prev.ts).total_seconds() > gap_tolerance_seconds:
             return False  # gap too wide; reset window
 
@@ -350,7 +350,7 @@ async def _maybe_close(
 
 async def _tick(session: AsyncSession) -> None:
     """One detector pass over every service."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     services = list((await session.execute(select(Service))).scalars())
 
     for service in services:

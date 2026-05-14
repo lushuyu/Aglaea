@@ -21,7 +21,7 @@ from typing import Any
 from jinja2 import Environment
 
 _env = Environment(
-    autoescape=False,
+    autoescape=False,  # noqa: S701 — rendering LLM prompt text, not HTML; HTML-escape would corrupt tags
     trim_blocks=True,
     lstrip_blocks=True,
     keep_trailing_newline=False,
@@ -129,9 +129,7 @@ def _format_heartbeats(heartbeats: list[dict[str, Any]]) -> str:
         status = hb.get("status", "")
         message = _wrap_user_value(hb.get("message"))
         subchecks = _wrap_user_value(hb.get("subchecks"))
-        out.append(
-            f"- ts={ts} status={status} message={message} subchecks={subchecks}"
-        )
+        out.append(f"- ts={ts} status={status} message={message} subchecks={subchecks}")
     return "\n".join(out)
 
 

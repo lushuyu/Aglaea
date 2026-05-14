@@ -18,7 +18,7 @@ import logging
 import socket
 import ssl
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import urlparse
 
@@ -26,7 +26,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from aglaea.config import CERT_WARN_DAYS, HTTPX_DEFAULT_TIMEOUT_SECONDS
+from aglaea.config import CERT_WARN_DAYS
 from aglaea.db import session_scope
 from aglaea.models.heartbeat import HeartbeatEvent
 from aglaea.models.services import Service, ServiceKind
@@ -41,16 +41,19 @@ def _inspect_cert_sync(host: str, port: int, timeout: float) -> dict[str, Any] |
     """Blocking TLS handshake + peercert read. ONLY call from to_thread."""
     ctx = ssl.create_default_context()
     try:
-        with socket.create_connection((host, port), timeout=timeout) as raw:
-            with ctx.wrap_socket(raw, server_hostname=host) as tls:
-                return tls.getpeercert()
+        with (
+            socket.create_connection((host, port), timeout=timeout) as raw,
+            ctx.wrap_socket(raw, server_hostname=host) as tls,
+        ):
+            return tls.getpeercert()
     except (OSError, ssl.SSLError) as exc:
         log.warning("prober.cert.handshake_failed", extra={"host": host, "error": str(exc)})
         return None
 
 
-async def _inspect_cert(host: str, port: int, timeout: float) -> dict[str, Any] | None:
+async def _inspect_cert(host: str, port: int, timeout: float) -> dict[str, Any] | None:  # noqa: ASYNC109 — timeout is forwarded to the blocking socket call inside to_thread, not used for asyncio cancellation
     import asyncio
+
     return await asyncio.to_thread(_inspect_cert_sync, host, port, timeout)
 
 
@@ -60,9 +63,7 @@ def _cert_days_remaining(peercert: dict[str, Any], now: datetime) -> int | None:
     if not isinstance(not_after, str):
         return None
     try:
-        expires_at = datetime.strptime(not_after, CERT_DATE_FMT).replace(
-            tzinfo=timezone.utc
-        )
+        expires_at = datetime.strptime(not_after, CERT_DATE_FMT).replace(tzinfo=UTC)
     except ValueError:
         return None
     return (expires_at - now).days
@@ -77,7 +78,7 @@ async def _probe_one(
     """One probe pass. Inserts heartbeat_events + updates services.last_*."""
     if not service.probe_url:
         return
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     status: str = "ok"
     message: str | None = None
     response_code: int | None = None
@@ -146,7 +147,7 @@ async def _probe_one(
 
 async def _tick(session: AsyncSession) -> None:
     """Probe every kind=pull service whose probe_interval has elapsed."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stmt = select(Service).where(Service.kind == ServiceKind.pull)
     services = list((await session.execute(stmt)).scalars())
     for service in services:

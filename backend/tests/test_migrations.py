@@ -54,16 +54,18 @@ def _run_alembic(direction: str, db_url: str) -> int:
         cmd = ["alembic", "-c", str(BACKEND_ROOT / "alembic.ini"), "downgrade", "base"]
     elif direction != "head":
         raise ValueError(f"unsupported direction: {direction}")
-    proc = subprocess.run(cmd, cwd=BACKEND_ROOT, env=env, check=False)
+    proc = subprocess.run(cmd, cwd=BACKEND_ROOT, env=env, check=False)  # noqa: S603 — cmd is hard-coded alembic invocation, no untrusted input
     return proc.returncode
 
 
 def test_alembic_round_trip() -> None:
     """upgrade head → downgrade base → upgrade head should all return 0."""
     assert PostgresContainer is not None
-    with PostgresContainer(TIMESCALE_IMAGE).with_env(
-        "POSTGRES_USER", "aglaea"
-    ).with_env("POSTGRES_DB", "aglaea") as container:
+    with (
+        PostgresContainer(TIMESCALE_IMAGE)
+        .with_env("POSTGRES_USER", "aglaea")
+        .with_env("POSTGRES_DB", "aglaea") as container
+    ):
         # Translate the container URL to asyncpg.
         sync_url = container.get_connection_url()
         async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://").replace(
@@ -75,16 +77,16 @@ def test_alembic_round_trip() -> None:
         import psycopg  # type: ignore[import-untyped]  # NOT installed by default
 
         try:
-            with psycopg.connect(sync_url) as conn:  # pragma: no cover
-                with conn.cursor() as cur:
-                    cur.execute(
-                        "SELECT 1 FROM timescaledb_information.hypertables "
-                        "WHERE hypertable_name = 'heartbeat_events'"
-                    )
-                    assert cur.fetchone() is not None
-        except Exception:
-            # If psycopg isn't installed we still assert alembic exit codes;
-            # the structural checks are gated on dev psycopg presence.
+            with (
+                psycopg.connect(sync_url) as conn,  # pragma: no cover
+                conn.cursor() as cur,
+            ):
+                cur.execute(
+                    "SELECT 1 FROM timescaledb_information.hypertables "
+                    "WHERE hypertable_name = 'heartbeat_events'"
+                )
+                assert cur.fetchone() is not None
+        except Exception:  # noqa: S110, BLE001 — psycopg absence is gated; structural checks rely on alembic exit codes
             pass
 
         assert _run_alembic("base", async_url) == 0
