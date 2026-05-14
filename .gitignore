@@ -56,3 +56,4 @@ Thumbs.db
 *.log
 *.tmp
 *.bak
+next-env.d.ts
