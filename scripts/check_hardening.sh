@@ -95,20 +95,26 @@ echo "--- AC5.3: No exposed ports for internal services ---"
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
     fail "AC5.3: docker-compose.yml not found"
 else
-    # Check that none of postgres/victoriametrics/otelcol have a ports: key
-    # using python yaml parser for robustness (yq may not be installed)
+    # Check that postgres/victoriametrics/otelcol expose no host-visible ports.
+    # Loopback bindings (127.0.0.1:host:container) are allowed — they're
+    # required so nginx on the host can reach otelcol's /v1/* endpoints, and
+    # are not reachable from external networks.
     if python3 - <<'PYEOF' "${COMPOSE_FILE}"
 import sys, yaml
 with open(sys.argv[1]) as f:
     compose = yaml.safe_load(f)
 services = compose.get("services", {})
 restricted = ["postgres", "victoriametrics", "otelcol"]
-found = []
+bad = []
 for svc in restricted:
-    if svc in services and services[svc].get("ports"):
-        found.append(svc)
-if found:
-    print(f"FAIL: services with exposed ports: {found}", file=sys.stderr)
+    ports = services.get(svc, {}).get("ports") or []
+    for entry in ports:
+        s = str(entry)
+        # Allow only loopback host bindings (127.0.0.1:HOSTPORT:CONTAINERPORT)
+        if not s.startswith("127.0.0.1:"):
+            bad.append(f"{svc}:{s}")
+if bad:
+    print(f"FAIL: services with externally-exposed ports: {bad}", file=sys.stderr)
     sys.exit(1)
 sys.exit(0)
 PYEOF
@@ -165,20 +171,16 @@ fi
 echo ""
 echo "--- AC5.6: OTel Collector bearer auth ---"
 OTEL_HOST="${OTEL_HOST:-https://otel.lushuyu.site}"
-if curl -sf --max-time 5 -o /dev/null \
-    -w "%{http_code}" "${OTEL_HOST}" \
-    -H "Authorization: Bearer wrongtoken123" 2>/dev/null | grep -q "^401$"; then
+# Capture the status code without `-f` (which exits non-zero on 4xx and
+# would discard the 401 we actually want to see).
+HTTP_CODE="$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" "${OTEL_HOST}" \
+    -H "Authorization: Bearer wrongtoken123" 2>/dev/null || echo "unreachable")"
+if [[ "${HTTP_CODE}" == "401" ]]; then
     pass "AC5.6: otel endpoint returns 401 for wrong bearer token"
-elif curl -sf --max-time 5 -o /dev/null "${OTEL_HOST}" 2>/dev/null | grep -q "^401$"; then
-    pass "AC5.6: otel endpoint returns 401 for missing bearer token"
+elif [[ "${HTTP_CODE}" == "unreachable" || "${HTTP_CODE}" == "000" ]]; then
+    skip "AC5.6: ${OTEL_HOST} not reachable — check when deployed"
 else
-    HTTP_CODE="$(curl -s --max-time 5 -o /dev/null -w "%{http_code}" "${OTEL_HOST}" \
-        -H "Authorization: Bearer wrongtoken123" 2>/dev/null || echo "unreachable")"
-    if [[ "${HTTP_CODE}" == "unreachable" || "${HTTP_CODE}" == "000" ]]; then
-        skip "AC5.6: ${OTEL_HOST} not reachable — check when deployed"
-    else
-        fail "AC5.6: otel endpoint returned HTTP ${HTTP_CODE} instead of 401 for wrong token"
-    fi
+    fail "AC5.6: otel endpoint returned HTTP ${HTTP_CODE} instead of 401 for wrong token"
 fi
 
 # ── AC5.7 — GitHub OAuth allowlist enforced ───────────────────────────────────
@@ -250,14 +252,14 @@ echo ""
 echo "--- AC5.10: Non-allowlist login rejection (runtime — covered by pytest) ---"
 if command -v python3 &>/dev/null && [[ -d "${REPO_ROOT}/backend" ]]; then
     cd "${REPO_ROOT}/backend"
-    if uv run pytest tests/test_auth.py -q --tb=short -k "non_allowlist" -x 2>/dev/null; then
-        pass "AC5.10: pytest non_allowlist test passed"
+    if uv run pytest tests/test_auth.py -q --tb=short -k "allowlist_rejection" -x 2>/dev/null; then
+        pass "AC5.10: pytest allowlist_rejection test passed"
     else
-        fail "AC5.10: pytest non_allowlist test failed"
+        fail "AC5.10: pytest allowlist_rejection test failed"
     fi
     cd "${REPO_ROOT}"
 else
-    skip "AC5.10: backend not set up — run: cd backend && uv run pytest tests/test_auth.py -k non_allowlist"
+    skip "AC5.10: backend not set up — run: cd backend && uv run pytest tests/test_auth.py -k allowlist_rejection"
 fi
 
 # ── AC5.11 — X-Aglaea-Timestamp validation ───────────────────────────────────
