@@ -7,7 +7,7 @@ import UptimeStrip from "@/components/UptimeStrip";
 import HomePanels from "@/components/HomePanels";
 import ClaudeCodePanel from "@/components/ClaudeCodePanel";
 import IncidentFeed from "@/components/IncidentFeed";
-import { motion } from "framer-motion";
+import ServiceRow from "@/components/ServiceRow";
 import { formatDistanceToNow } from "date-fns";
 import type { PublicService, ServiceStatus, PublicIncidentPublished, UptimeDay } from "@/types/api";
 
@@ -225,15 +225,7 @@ export default async function PublicOverview() {
               href={`/services/${svc.slug}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
-              <motion.div
-                layout
-                whileHover={{ scale: 1.01, boxShadow: "var(--shadow-lift)" }}
-                transition={{
-                  layout: { duration: 0.25 },
-                  default: { duration: 0.12, ease: "easeOut" },
-                }}
-                className="service-row"
-              >
+              <ServiceRow>
                 {/* column 1: name + description */}
                 <div className="service-row__name">
                   <div
@@ -276,7 +268,7 @@ export default async function PublicOverview() {
                 <div className="service-row-right">
                   <StatusBadge status={svc.last_status ?? "unknown"} size="row" />
                 </div>
-              </motion.div>
+              </ServiceRow>
             </Link>
           );
         })}
