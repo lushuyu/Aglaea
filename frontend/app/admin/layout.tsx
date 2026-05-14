@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import QueryClientProviderWrapper from "@/components/QueryClientProviderWrapper";
 import { LiveTickProvider } from "@/components/LiveTickProvider";
 import Brandmark from "@/components/Brandmark";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -24,8 +23,7 @@ const NAV_ITEMS = [
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProviderWrapper>
-      <LiveTickProvider>
+    <LiveTickProvider>
         <div className="admin-shell">
           <aside className="admin-sidebar">
             <div style={{ padding: "20px 16px 12px" }}>
@@ -86,6 +84,5 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
         <ThemeToggle />
       </LiveTickProvider>
-    </QueryClientProviderWrapper>
   );
 }

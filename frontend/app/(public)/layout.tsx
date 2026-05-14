@@ -4,7 +4,7 @@ import Brandmark from "@/components/Brandmark";
 import StarField from "@/components/StarField";
 import LocalClock from "@/components/LocalClock";
 import ThemeToggle from "@/components/ThemeToggle";
-import PubTabBar from "@/components/PubTabBar";
+import PublicMotionShell from "@/components/PublicMotionShell";
 import "@/styles/screens/common.css";
 import "@/styles/screens/public-overview.css";
 import "@/styles/screens/public-service.css";
@@ -14,7 +14,7 @@ import "@/styles/screens/public-about.css";
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <PublicMotionShell>
       <StarField />
       <header className="pub-header">
         <Link href="/" className="brand-link" style={{ textDecoration: "none" }}>
@@ -49,11 +49,9 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <PubTabBar />
-
       <main className="pub-main">{children}</main>
 
       <ThemeToggle />
-    </>
+    </PublicMotionShell>
   );
 }

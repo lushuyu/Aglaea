@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { SonnerProvider } from "@/lib/sonner";
+import QueryClientProviderWrapper from "@/components/QueryClientProviderWrapper";
 
 export const metadata: Metadata = {
   title: "Aglaea — status & signal",
@@ -19,8 +20,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        {children}
-        <SonnerProvider />
+        <QueryClientProviderWrapper>
+          {children}
+          <SonnerProvider />
+        </QueryClientProviderWrapper>
       </body>
     </html>
   );

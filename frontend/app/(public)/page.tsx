@@ -4,6 +4,10 @@ import StatusBanner from "@/components/StatusBanner";
 import StatusBadge from "@/components/StatusBadge";
 import SubcheckStrip from "@/components/SubcheckStrip";
 import UptimeStrip from "@/components/UptimeStrip";
+import HomePanels from "@/components/HomePanels";
+import ClaudeCodePanel from "@/components/ClaudeCodePanel";
+import IncidentFeed from "@/components/IncidentFeed";
+import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
 import type { PublicService, ServiceStatus, PublicIncidentPublished, UptimeDay } from "@/types/api";
 
@@ -81,8 +85,8 @@ export default async function PublicOverview() {
 
   const uptimeBySlug = new Map(uptimeResults.map((r) => [r.slug, r.days]));
 
-  return (
-    <div className="container">
+  const statusPanel = (
+    <>
       <div style={{ paddingTop: 32, paddingBottom: 40 }}>
         <StatusBanner status={overall} title={STATUS_LABEL[overall]} />
       </div>
@@ -221,52 +225,73 @@ export default async function PublicOverview() {
               href={`/services/${svc.slug}`}
               style={{ textDecoration: "none", color: "inherit" }}
             >
-              <div className="service-row">
-                <div className="service-row-left">
-                  <div>
+              <motion.div
+                layout
+                whileHover={{ scale: 1.01, boxShadow: "var(--shadow-lift)" }}
+                transition={{
+                  layout: { duration: 0.25 },
+                  default: { duration: 0.12, ease: "easeOut" },
+                }}
+                className="service-row"
+              >
+                {/* column 1: name + description */}
+                <div className="service-row__name">
+                  <div
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: 16,
+                      color: "var(--fg-0)",
+                    }}
+                  >
+                    {svc.display_name}
+                  </div>
+                  {svc.description && (
                     <div
                       style={{
-                        fontFamily: "var(--font-serif)",
                         fontSize: 16,
-                        color: "var(--fg-0)",
+                        color: "var(--fg-3)",
+                        marginTop: 2,
                       }}
                     >
-                      {svc.display_name}
+                      {svc.description}
                     </div>
-                    {svc.description && (
-                      <div
-                        style={{
-                          fontSize: 16,
-                          color: "var(--fg-3)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {svc.description}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="service-row-uptime">
-                  {uptimeDays.length > 0 && (
-                    <UptimeStrip days={uptimeDays} />
                   )}
                 </div>
 
+                {/* column 2: SubcheckStrip (was column 3) */}
                 <div className="service-row-mid">
                   {svc.last_subchecks && Object.keys(svc.last_subchecks).length > 0 && (
                     <SubcheckStrip subchecks={svc.last_subchecks} />
                   )}
                 </div>
 
-                <div className="service-row-right">
-                  <StatusBadge status={svc.last_status ?? "unknown"} size="sm" />
+                {/* column 3: UptimeStrip (was column 2) */}
+                <div className="service-row-uptime">
+                  {uptimeDays.length > 0 && (
+                    <UptimeStrip days={uptimeDays} />
+                  )}
                 </div>
-              </div>
+
+                {/* column 4: StatusBadge with size="row" */}
+                <div className="service-row-right">
+                  <StatusBadge status={svc.last_status ?? "unknown"} size="row" />
+                </div>
+              </motion.div>
             </Link>
           );
         })}
       </div>
-    </div>
+
+      <IncidentFeed />
+    </>
+  );
+
+  return (
+    <main className="container">
+      <HomePanels
+        statusPanel={statusPanel}
+        ccPanel={<ClaudeCodePanel />}
+      />
+    </main>
   );
 }

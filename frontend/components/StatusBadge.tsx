@@ -47,14 +47,14 @@ interface ServiceStatusProps {
   status: ServiceStatus;
   lifecycle?: never;
   label?: string;
-  size?: "md" | "sm";
+  size?: "md" | "sm" | "row";
 }
 
 interface LifecycleProps {
   status?: never;
   lifecycle: LifecycleState;
   label?: string;
-  size?: "md" | "sm";
+  size?: "md" | "sm" | "row";
 }
 
 type Props = ServiceStatusProps | LifecycleProps;
@@ -64,15 +64,17 @@ export default function StatusBadge({ status, lifecycle, label, size = "md" }: P
   if (lifecycle !== undefined) {
     const text = label ?? LIFECYCLE_LABELS[lifecycle] ?? lifecycle;
     const styles = LIFECYCLE_STYLES[lifecycle];
+    const isRow = size === "row";
     return (
       <span
+        className={isRow ? "status-badge--row" : undefined}
         style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 5,
           fontFamily: "var(--font-mono)",
-          fontSize: size === "sm" ? 11 : 12,
-          padding: size === "sm" ? "2px 8px" : "3px 10px",
+          fontSize: isRow ? "var(--fs-12)" : size === "sm" ? 11 : 12,
+          padding: isRow ? "4px 8px" : size === "sm" ? "2px 8px" : "3px 10px",
           borderRadius: 999,
           whiteSpace: "nowrap",
           ...styles,
@@ -85,13 +87,17 @@ export default function StatusBadge({ status, lifecycle, label, size = "md" }: P
 
   // Original service status pill
   const text = label ?? STATUS_LABELS[status] ?? status;
+  const isRow = size === "row";
   return (
     <span
       className={
-        "status-badge st-" + status + (size === "sm" ? " sm" : "")
+        "status-badge st-" +
+        status +
+        (size === "sm" ? " sm" : "") +
+        (isRow ? " status-badge--row" : "")
       }
     >
-      <StatusGlyph status={status} size={size === "sm" ? 10 : 12} />
+      <StatusGlyph status={status} size={isRow || size === "sm" ? 10 : 12} />
       <span>{text}</span>
     </span>
   );

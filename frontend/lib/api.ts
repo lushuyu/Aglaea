@@ -347,3 +347,31 @@ export async function getPublicActiveIncidents(
   );
   return data;
 }
+
+/** Flat incident feed item — Incident + denormalised service slug/name. */
+export interface IncidentWithService extends Incident {
+  service_name: string;
+}
+
+/**
+ * GET /api/public/incidents — flat reverse-chronological feed across all
+ * publicly-visible services. Used by the client-side IncidentFeed component;
+ * called from the browser so we use the same-origin path (nginx proxies /api).
+ *
+ * `beforeTs` + `beforeId` form a composite cursor — pass both from the last
+ * row of the previous page to fetch the next page (stable across same-ms ties).
+ */
+export async function listAllIncidents(params: {
+  limit?: number;
+  beforeTs?: string;
+  beforeId?: string;
+}): Promise<IncidentWithService[]> {
+  const sp = new URLSearchParams();
+  if (params.limit !== undefined) sp.set("limit", String(params.limit));
+  if (params.beforeTs) sp.set("before_ts", params.beforeTs);
+  if (params.beforeId) sp.set("before_id", params.beforeId);
+  const qs = sp.toString();
+  return apiFetch<IncidentWithService[]>(
+    `/api/public/incidents${qs ? `?${qs}` : ""}`
+  );
+}
