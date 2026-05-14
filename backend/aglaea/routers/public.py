@@ -6,9 +6,11 @@ pinned to the `PUBLIC_FIELDS_*` frozensets at module import time.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import desc, select, text
+from sqlalchemy import and_, desc, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aglaea.config import HTTPX_DEFAULT_TIMEOUT_SECONDS, get_settings
@@ -18,6 +20,7 @@ from aglaea.models.incidents import Incident, IncidentLifecycleState
 from aglaea.models.services import Service
 from aglaea.promql import ALLOWED_PUBLIC_METRICS, PUBLIC_QUERIES
 from aglaea.schemas.public import (
+    PublicIncidentFeedItem,
     PublicIncidentPublished,
     PublicIncidentSkeleton,
     PublicIncidentUpdate,
@@ -44,6 +47,57 @@ async def list_services(
     )
     rows = list((await session.execute(stmt)).scalars())
     return {"services": [PublicService.model_validate(r) for r in rows]}
+
+
+@router.get("/incidents")
+async def list_all_incidents(
+    limit: int = Query(default=20, ge=1, le=100),
+    before_ts: datetime | None = Query(default=None),
+    before_id: int | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> list[PublicIncidentFeedItem]:
+    """Flat reverse-chronological incident feed across all publicly-visible
+    services. Stable composite-key cursor `(started_at DESC, id DESC)` to
+    survive same-millisecond ties.
+
+    Visibility predicate `Service.public_visible` is reused from the existing
+    per-service `/services/{slug}/incidents` endpoint above — same scope.
+    """
+    # Both cursor params must be provided together; otherwise ignore cursor.
+    use_cursor = before_ts is not None and before_id is not None
+
+    stmt = (
+        select(Incident, Service.slug, Service.display_name)
+        .join(Service, Service.id == Incident.service_id)
+        .where(Service.public_visible)
+    )
+    if use_cursor:
+        # Row-value tuple comparison expressed as a portable OR:
+        # (started_at, id) < (before_ts, before_id)
+        stmt = stmt.where(
+            or_(
+                Incident.started_at < before_ts,
+                and_(Incident.started_at == before_ts, Incident.id < before_id),
+            )
+        )
+    stmt = stmt.order_by(desc(Incident.started_at), desc(Incident.id)).limit(limit)
+
+    rows = (await session.execute(stmt)).all()
+    return [
+        PublicIncidentFeedItem(
+            id=inc.id,
+            service_slug=slug,
+            service_name=name,
+            status=inc.status.value,
+            started_at=inc.started_at,
+            resolved_at=inc.resolved_at,
+            affected_subchecks=list(inc.affected_subchecks or []),
+            published_text=inc.published_text,
+            published_at=inc.published_at,
+            summary=inc.summary,
+        )
+        for inc, slug, name in rows
+    ]
 
 
 @router.get("/services/{slug}")

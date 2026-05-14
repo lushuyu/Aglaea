@@ -72,6 +72,22 @@ PUBLIC_FIELDS_INCIDENT_SKELETON: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Fields of the flat incident feed row (denormalised join of Incident + Service).
+PUBLIC_FIELDS_INCIDENT_FEED_ITEM: Final[frozenset[str]] = frozenset(
+    {
+        "id",
+        "service_slug",
+        "service_name",
+        "status",
+        "started_at",
+        "resolved_at",
+        "affected_subchecks",
+        "published_text",
+        "published_at",
+        "summary",
+    }
+)
+
 # Fields of HeartbeatEvent exposed publicly (timeline rendering).
 # host_name / metrics that may carry host_name dimensions are excluded.
 PUBLIC_FIELDS_HEARTBEAT: Final[frozenset[str]] = frozenset(
@@ -125,6 +141,7 @@ __all__ = [
     "LLM_CONTEXT_FIELDS_INCIDENT",
     "LLM_CONTEXT_FIELDS_SERVICE",
     "PUBLIC_FIELDS_HEARTBEAT",
+    "PUBLIC_FIELDS_INCIDENT_FEED_ITEM",
     "PUBLIC_FIELDS_INCIDENT_PUBLISHED",
     "PUBLIC_FIELDS_INCIDENT_SKELETON",
     "PUBLIC_FIELDS_INCIDENT_UPDATE",

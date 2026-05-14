@@ -6,12 +6,12 @@ import enum
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ARRAY, BigInteger, ForeignKey, Integer, Text
+from sqlalchemy import BigInteger, ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum
 
-from aglaea.models._portable import PortableJSONB
+from aglaea.models._portable import PortableJSONB, PortableTextArray
 from aglaea.models.base import Base
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ class Incident(Base):
         PortableJSONB, nullable=True
     )
     affected_subchecks: Mapped[list[str]] = mapped_column(
-        ARRAY(Text), nullable=False, server_default="{}"
+        PortableTextArray, nullable=False, server_default="{}"
     )
     report_state: Mapped[IncidentReportState] = mapped_column(
         Enum(

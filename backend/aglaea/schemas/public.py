@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from aglaea.security.visibility import (
     PUBLIC_FIELDS_HEARTBEAT,
+    PUBLIC_FIELDS_INCIDENT_FEED_ITEM,
     PUBLIC_FIELDS_INCIDENT_PUBLISHED,
     PUBLIC_FIELDS_INCIDENT_SKELETON,
     PUBLIC_FIELDS_INCIDENT_UPDATE,
@@ -92,6 +93,25 @@ class PublicHeartbeat(BaseModel):
     source: Literal["push", "probe"]
 
 
+class PublicIncidentFeedItem(BaseModel):
+    """Flat feed row — joins service slug + name onto the per-incident public
+    fields. Enrolled in the PUBLIC_FIELDS_INCIDENT_FEED_ITEM allowlist.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    service_slug: str
+    service_name: str
+    status: Literal["ongoing", "resolved"]
+    started_at: datetime
+    resolved_at: datetime | None
+    affected_subchecks: list[str]
+    published_text: str | None
+    published_at: datetime | None
+    summary: str | None
+
+
 # === Visibility allowlist coupling (AC1.4) ===
 # Module-load assertions ensure the response model field set is exactly the
 # frozenset constant. Adding a field to either side without the other trips
@@ -115,11 +135,17 @@ _VISIBILITY_CONTRACTS: tuple[tuple[type[BaseModel], frozenset[str], str], ...] =
         "PUBLIC_FIELDS_INCIDENT_SKELETON",
     ),
     (PublicHeartbeat, PUBLIC_FIELDS_HEARTBEAT, "PUBLIC_FIELDS_HEARTBEAT"),
+    (
+        PublicIncidentFeedItem,
+        PUBLIC_FIELDS_INCIDENT_FEED_ITEM,
+        "PUBLIC_FIELDS_INCIDENT_FEED_ITEM",
+    ),
 )
 
 
 __all__ = [
     "PublicHeartbeat",
+    "PublicIncidentFeedItem",
     "PublicIncidentPublished",
     "PublicIncidentSkeleton",
     "PublicIncidentUpdate",
