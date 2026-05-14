@@ -74,20 +74,20 @@ def test_alembic_round_trip() -> None:
 
         assert _run_alembic("head", async_url) == 0
 
-        import psycopg  # type: ignore[import-untyped]  # NOT installed by default
-
-        try:
-            with (
-                psycopg.connect(sync_url) as conn,  # pragma: no cover
-                conn.cursor() as cur,
-            ):
-                cur.execute(
-                    "SELECT 1 FROM timescaledb_information.hypertables "
-                    "WHERE hypertable_name = 'heartbeat_events'"
-                )
-                assert cur.fetchone() is not None
-        except Exception:  # noqa: S110, BLE001 — psycopg absence is gated; structural checks rely on alembic exit codes
-            pass
+        # psycopg is an optional dev dep; if absent the alembic exit codes
+        # still prove migration ran. Skip the structural-detail check.
+        psycopg = pytest.importorskip(
+            "psycopg", reason="psycopg not installed; alembic exit codes suffice"
+        )
+        with (
+            psycopg.connect(sync_url) as conn,  # pragma: no cover
+            conn.cursor() as cur,
+        ):
+            cur.execute(
+                "SELECT 1 FROM timescaledb_information.hypertables "
+                "WHERE hypertable_name = 'heartbeat_events'"
+            )
+            assert cur.fetchone() is not None
 
         assert _run_alembic("base", async_url) == 0
         assert _run_alembic("head", async_url) == 0

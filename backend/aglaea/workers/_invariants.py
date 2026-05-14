@@ -39,12 +39,13 @@ async def worker_loop(
       then continue the loop. Backoff resets after a successful tick.
     - asyncio.CancelledError → propagates (lifespan shutdown).
     """
-    backoff = INITIAL_BACKOFF_SECONDS
+    initial_backoff = min(INITIAL_BACKOFF_SECONDS, backoff_max_seconds)
+    backoff = initial_backoff
     log.info("worker.started", extra={"worker": name, "interval": interval_seconds})
     while True:
         try:
             await body()
-            backoff = INITIAL_BACKOFF_SECONDS
+            backoff = initial_backoff
             await asyncio.sleep(interval_seconds)
         except asyncio.CancelledError:
             log.info("worker.cancelled_inside_loop", extra={"worker": name})

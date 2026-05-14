@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ARRAY, BigInteger, ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum
 
+from aglaea.models._portable import PortableJSONB
 from aglaea.models.base import Base
 
 if TYPE_CHECKING:
@@ -49,8 +49,12 @@ class Incident(Base):
     )
     started_at: Mapped[datetime] = mapped_column(nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    initial_failure_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
-    final_recovery_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    initial_failure_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSONB, nullable=True
+    )
+    final_recovery_payload: Mapped[dict[str, Any] | None] = mapped_column(
+        PortableJSONB, nullable=True
+    )
     affected_subchecks: Mapped[list[str]] = mapped_column(
         ARRAY(Text), nullable=False, server_default="{}"
     )

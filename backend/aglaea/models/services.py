@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import BigInteger, Boolean, CheckConstraint, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum
 
+from aglaea.models._portable import PortableJSONB
 from aglaea.models.base import Base
 
 
@@ -44,7 +44,7 @@ class Service(Base):
     )
     last_heartbeat_at: Mapped[datetime | None] = mapped_column(nullable=True)
     last_status: Mapped[str | None] = mapped_column(Text, nullable=True)
-    last_subchecks: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    last_subchecks: Mapped[dict[str, Any] | None] = mapped_column(PortableJSONB, nullable=True)
     last_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     deepseek_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())

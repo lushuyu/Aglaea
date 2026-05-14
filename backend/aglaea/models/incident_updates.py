@@ -7,11 +7,11 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import BigInteger, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 from sqlalchemy.types import Enum
 
+from aglaea.models._portable import PortableJSONB
 from aglaea.models.base import Base
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ class IncidentUpdate(Base):
         nullable=False,
     )
     text: Mapped[str | None] = mapped_column(Text, nullable=True)
-    status_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    status_snapshot: Mapped[dict[str, Any] | None] = mapped_column(PortableJSONB, nullable=True)
     author_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("admin_users.id", ondelete="SET NULL"), nullable=True
     )
