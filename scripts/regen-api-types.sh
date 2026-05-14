@@ -21,57 +21,32 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}/backend"
 FRONTEND_TYPES_DIR="${REPO_ROOT}/frontend/types"
 OUTPUT_FILE="${FRONTEND_TYPES_DIR}/api.ts"
-SERVER_PORT=18765   # Non-standard port to avoid conflicts
-SERVER_PID=""
-
-cleanup() {
-    if [[ -n "${SERVER_PID}" ]]; then
-        echo "Stopping dev server (PID ${SERVER_PID})..."
-        kill "${SERVER_PID}" 2>/dev/null || true
-        wait "${SERVER_PID}" 2>/dev/null || true
-    fi
-}
-trap cleanup EXIT
+# No server is launched anymore; schema is extracted in-process.
 
 echo "=== Regenerating frontend/types/api.ts from OpenAPI schema ==="
 
 # Ensure output directory exists
 mkdir -p "${FRONTEND_TYPES_DIR}"
 
-# Start FastAPI dev server in the background
-echo "Starting FastAPI dev server on port ${SERVER_PORT}..."
+# Dump OpenAPI schema by importing the FastAPI app and calling app.openapi().
+# This avoids booting uvicorn (which would start lifespan workers that try to
+# connect to the DB and crash without one). app.openapi() is pure route
+# introspection — no DB, no network.
+echo "Dumping OpenAPI schema via app.openapi()..."
 cd "${BACKEND_DIR}"
 
-# Use a no-DB config for schema generation (schema does not require DB connectivity)
+SCHEMA_FILE="$(mktemp /tmp/aglaea-openapi-XXXXXX.json)"
+
 DATABASE_URL="postgresql+asyncpg://aglaea:placeholder@localhost:5432/aglaea" \
 DEEPSEEK_API_KEY="placeholder" \
 GITHUB_OAUTH_CLIENT_ID="placeholder" \
 GITHUB_OAUTH_CLIENT_SECRET="placeholder" \
-SESSION_SECRET="placeholder" \
+SESSION_SECRET="placeholder_session_secret_32chars_ok" \
 BOOTSTRAP_GITHUB_LOGIN="lushuyu" \
-    uv run uvicorn aglaea.main:app --host 127.0.0.1 --port "${SERVER_PORT}" \
-    --no-access-log &
-SERVER_PID=$!
+    uv run python -c "import json, sys; from aglaea.main import app; json.dump(app.openapi(), sys.stdout)" \
+    > "${SCHEMA_FILE}"
 
-echo "Server PID: ${SERVER_PID}"
-
-# Wait for server to be ready (up to 30s)
-MAX_WAIT=30
-ELAPSED=0
-until curl -sf "http://127.0.0.1:${SERVER_PORT}/api/health" >/dev/null 2>&1; do
-    sleep 1
-    ELAPSED=$((ELAPSED + 1))
-    if [[ ${ELAPSED} -ge ${MAX_WAIT} ]]; then
-        echo "ERROR: Dev server did not start within ${MAX_WAIT}s." >&2
-        exit 1
-    fi
-done
-echo "Server ready."
-
-# Fetch OpenAPI schema
-SCHEMA_FILE="$(mktemp /tmp/aglaea-openapi-XXXXXX.json)"
-echo "Fetching /openapi.json → ${SCHEMA_FILE}..."
-curl -sf "http://127.0.0.1:${SERVER_PORT}/openapi.json" -o "${SCHEMA_FILE}"
+echo "Schema written → ${SCHEMA_FILE}"
 
 # Run openapi-typescript
 echo "Running openapi-typescript → ${OUTPUT_FILE}..."
