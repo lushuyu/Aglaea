@@ -461,7 +461,10 @@ async def public_claude_code() -> PublicClaudeCodeResponse:
     """
     settings = get_settings()
     vm_url = settings.vm_url.rstrip("/")
-    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+    # Round UP to the next hour: rounding down would put end_ts before any data
+    # point that arrived inside the current hour, causing increase()'s 1d
+    # lookback window to miss it. Future-end is safe — VM has no data there.
+    now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     now_ts = int(now.timestamp())
     day_ago_30_ts = int((now - timedelta(days=30)).timestamp())
 
