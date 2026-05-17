@@ -14,6 +14,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 from aglaea.security.visibility import (
+    PUBLIC_FIELDS_CLAUDE_CODE,
+    PUBLIC_FIELDS_CLAUDE_CODE_METRICS,
     PUBLIC_FIELDS_HEARTBEAT,
     PUBLIC_FIELDS_INCIDENT_FEED_ITEM,
     PUBLIC_FIELDS_INCIDENT_PUBLISHED,
@@ -112,6 +114,91 @@ class PublicIncidentFeedItem(BaseModel):
     summary: str | None
 
 
+# ── Claude Code analytics — public panel response ─────────────────────────
+
+
+class TokenDataPoint(BaseModel):
+    """One daily aggregate of input+output tokens."""
+
+    ts: str
+    value: float
+
+
+class CostDataPoint(BaseModel):
+    """One daily aggregate of USD spent."""
+
+    ts: str
+    usd: float
+
+
+class SessionDataPoint(BaseModel):
+    """One daily session count."""
+
+    date: str
+    count: int
+
+
+class CommitDataPoint(BaseModel):
+    """One daily commit count."""
+
+    date: str
+    count: int
+
+
+class LocDataPoint(BaseModel):
+    """One daily lines-of-code change (added + removed)."""
+
+    date: str
+    added: int
+    removed: int
+
+
+class ModelTokens(BaseModel):
+    """Per-model token aggregate."""
+
+    model: str
+    value: float
+
+
+class TerminalShare(BaseModel):
+    """Per-terminal session count over the window."""
+
+    type: str
+    value: float
+
+
+class ActiveTimeRatio(BaseModel):
+    """CLI uptime seconds vs user-active seconds over 7d."""
+
+    cli: float
+    user: float
+
+
+class ClaudeCodeMetrics(BaseModel):
+    """Aggregated Claude Code usage metrics for the public panel.
+
+    Field set is pinned to PUBLIC_FIELDS_CLAUDE_CODE_METRICS via
+    `_verify_allowlist_coupling()` at module import time.
+    """
+
+    token_total_30d: list[TokenDataPoint]
+    cost_trend_30d: list[CostDataPoint]
+    token_by_model: list[ModelTokens]
+    cache_hit_rate_7d: float
+    active_time_ratio_7d: ActiveTimeRatio
+    sessions_daily_30d: list[SessionDataPoint]
+    commits_daily_30d: list[CommitDataPoint]
+    loc_daily_30d: list[LocDataPoint]
+    active_hours_heatmap: list[list[float]]
+    terminal_type_share: list[TerminalShare]
+
+
+class PublicClaudeCodeResponse(BaseModel):
+    """Wrapper for GET /api/public/claude-code."""
+
+    metrics: ClaudeCodeMetrics
+
+
 # === Visibility allowlist coupling (AC1.4) ===
 # Module-load assertions ensure the response model field set is exactly the
 # frozenset constant. Adding a field to either side without the other trips
@@ -140,16 +227,36 @@ _VISIBILITY_CONTRACTS: tuple[tuple[type[BaseModel], frozenset[str], str], ...] =
         PUBLIC_FIELDS_INCIDENT_FEED_ITEM,
         "PUBLIC_FIELDS_INCIDENT_FEED_ITEM",
     ),
+    (
+        ClaudeCodeMetrics,
+        PUBLIC_FIELDS_CLAUDE_CODE_METRICS,
+        "PUBLIC_FIELDS_CLAUDE_CODE_METRICS",
+    ),
+    (
+        PublicClaudeCodeResponse,
+        PUBLIC_FIELDS_CLAUDE_CODE,
+        "PUBLIC_FIELDS_CLAUDE_CODE",
+    ),
 )
 
 
 __all__ = [
+    "ActiveTimeRatio",
+    "ClaudeCodeMetrics",
+    "CommitDataPoint",
+    "CostDataPoint",
+    "LocDataPoint",
+    "ModelTokens",
+    "PublicClaudeCodeResponse",
     "PublicHeartbeat",
     "PublicIncidentFeedItem",
     "PublicIncidentPublished",
     "PublicIncidentSkeleton",
     "PublicIncidentUpdate",
     "PublicService",
+    "SessionDataPoint",
+    "TerminalShare",
+    "TokenDataPoint",
 ]
 
 

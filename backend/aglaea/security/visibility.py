@@ -100,6 +100,25 @@ PUBLIC_FIELDS_HEARTBEAT: Final[frozenset[str]] = frozenset(
     }
 )
 
+# Fields of ClaudeCodeMetrics exposed publicly via /api/public/claude-code.
+PUBLIC_FIELDS_CLAUDE_CODE_METRICS: Final[frozenset[str]] = frozenset(
+    {
+        "token_total_30d",
+        "cost_trend_30d",
+        "token_by_model",
+        "cache_hit_rate_7d",
+        "active_time_ratio_7d",
+        "sessions_daily_30d",
+        "commits_daily_30d",
+        "loc_daily_30d",
+        "active_hours_heatmap",
+        "terminal_type_share",
+    }
+)
+
+# Wrapper response shape — single `metrics` key carrying ClaudeCodeMetrics.
+PUBLIC_FIELDS_CLAUDE_CODE: Final[frozenset[str]] = frozenset({"metrics"})
+
 # Fields permitted to be projected into the LLM context for narrative
 # generation. Heartbeat side: never includes host_name, client_ts (could
 # include user-supplied content), or internal metrics that aren't service-meta.
@@ -140,6 +159,8 @@ __all__ = [
     "LLM_CONTEXT_FIELDS_HEARTBEAT",
     "LLM_CONTEXT_FIELDS_INCIDENT",
     "LLM_CONTEXT_FIELDS_SERVICE",
+    "PUBLIC_FIELDS_CLAUDE_CODE",
+    "PUBLIC_FIELDS_CLAUDE_CODE_METRICS",
     "PUBLIC_FIELDS_HEARTBEAT",
     "PUBLIC_FIELDS_INCIDENT_FEED_ITEM",
     "PUBLIC_FIELDS_INCIDENT_PUBLISHED",
