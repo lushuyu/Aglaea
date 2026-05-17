@@ -487,7 +487,7 @@ async def public_claude_code() -> PublicClaudeCodeResponse:
             _vm_range(
                 client,
                 vm_url,
-                'sum(increase(claude_code_token_usage_tokens_total{type=~"input|output"}[1d]))',
+                "sum(increase(claude_code_token_usage_tokens_total[1d]))",
                 day_ago_30_ts,
                 now_ts,
                 "1d",
@@ -543,9 +543,7 @@ async def public_claude_code() -> PublicClaudeCodeResponse:
             _vm_instant(
                 client,
                 vm_url,
-                "sum by (model) (increase("
-                'claude_code_token_usage_tokens_total{type=~"input|output"}[30d]'
-                "))",
+                "sum by (model) (increase(claude_code_token_usage_tokens_total[30d]))",
             ),
             _vm_instant(
                 client,

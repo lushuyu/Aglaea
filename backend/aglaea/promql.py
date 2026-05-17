@@ -41,12 +41,8 @@ def _public(q: str) -> str:
 # Source admin queries (with host_name dimension intact when present).
 ADMIN_QUERIES: Final[dict[str, str]] = {
     # ── 7-day totals / rates ─────────────────────────────────────────────
-    "token-total": (
-        'sum(increase(claude_code_token_usage_tokens_total{type=~"input|output"}[7d]))'
-    ),
-    "token-by-model": (
-        'sum by (model) (increase(claude_code_token_usage_tokens_total{type=~"input|output"}[7d]))'
-    ),
+    "token-total": "sum(increase(claude_code_token_usage_tokens_total[7d]))",
+    "token-by-model": ("sum by (model) (increase(claude_code_token_usage_tokens_total[7d]))"),
     "cost-trend": "sum(increase(claude_code_cost_usage_USD_total[7d]))",
     "cache-hit-rate": (
         'sum(increase(claude_code_token_usage_tokens_total{type="cacheRead"}[7d])) '
