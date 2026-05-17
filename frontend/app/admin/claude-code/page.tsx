@@ -3,7 +3,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { adminGetClaudeCode } from "@/lib/api";
 import LineChart from "@/components/LineChart";
-import Heatmap from "@/components/Heatmap";
 import Donut from "@/components/Donut";
 import StackedBars from "@/components/StackedBars";
 import { fmtNum } from "@/lib/fmt";
@@ -57,46 +56,36 @@ export default function AdminClaudeCodePage() {
     );
   }
 
-  const totalTokens = metrics.token_total_30d.reduce(
-    (a, p) => a + p.value,
-    0
-  );
-  const totalCost = metrics.cost_trend_30d.reduce((a, p) => a + p.usd, 0);
-  const totalSessions = metrics.sessions_daily_30d.reduce(
+  const totalTokens = metrics.token_total.reduce((a, p) => a + p.value, 0);
+  const totalCost = metrics.cost_trend.reduce((a, p) => a + p.usd, 0);
+  const totalSessions = metrics.sessions_daily.reduce(
     (a, p) => a + p.count,
     0
   );
-  const totalCommits = metrics.commits_daily_30d.reduce(
+  const totalCommits = metrics.commits_daily.reduce(
     (a, p) => a + p.count,
     0
   );
 
-  const hourlyLabels = Array.from({ length: 24 }, (_, i) =>
-    String(i).padStart(2, "0")
-  );
-  const heatmapRowLabels = metrics.active_hours_heatmap.map(
-    (_, i) => `W${i + 1}`
-  );
-
-  const locChartData = metrics.loc_daily_30d.map((p) => ({
+  const locChartData = metrics.loc_daily.map((p) => ({
     x: p.date,
     added: p.added,
     removed: p.removed,
   }));
 
-  const tokenLineData = metrics.token_total_30d.map((p) => ({
+  const tokenLineData = metrics.token_total.map((p) => ({
     x: p.ts.slice(0, 10),
     y: p.value,
   }));
-  const costLineData = metrics.cost_trend_30d.map((p) => ({
+  const costLineData = metrics.cost_trend.map((p) => ({
     x: p.ts.slice(0, 10),
     y: p.usd,
   }));
-  const sessionLineData = metrics.sessions_daily_30d.map((p) => ({
+  const sessionLineData = metrics.sessions_daily.map((p) => ({
     x: p.date,
     y: p.count,
   }));
-  const commitLineData = metrics.commits_daily_30d.map((p) => ({
+  const commitLineData = metrics.commits_daily.map((p) => ({
     x: p.date,
     y: p.count,
   }));
@@ -136,7 +125,7 @@ export default function AdminClaudeCodePage() {
         </div>
         <div className="glance-tile">
           <div className="glance-value">
-            {(metrics.cache_hit_rate_7d * 100).toFixed(1)}%
+            {(metrics.cache_hit_rate * 100).toFixed(1)}%
           </div>
           <div style={{ fontSize: 12, color: "var(--fg-3)" }}>Cache hit</div>
         </div>
@@ -238,21 +227,6 @@ export default function AdminClaudeCodePage() {
           </div>
         )}
       </div>
-
-      {/* Hourly heatmap */}
-      {metrics.active_hours_heatmap.length > 0 && (
-        <div className="chart-card" style={{ marginBottom: 32 }}>
-          <div className="chart-card-hd">Active hours heatmap</div>
-          <div className="chart-card-body">
-            <Heatmap
-              data={metrics.active_hours_heatmap}
-              rowLabels={heatmapRowLabels}
-              colLabels={hourlyLabels}
-              w={720}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Per-host breakdown */}
       {metrics.by_host && Object.keys(metrics.by_host).length > 0 && (

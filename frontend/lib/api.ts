@@ -100,10 +100,20 @@ export async function getPublicIncident(
   );
 }
 
-/** GET /api/public/claude-code */
-export async function getClaudeCodeMetric(): Promise<PublicClaudeCodeResponse> {
+/** GET /api/public/claude-code — optionally scoped to [start_ms, end_ms].
+ *
+ * Callable from server (SSR) and client (React Query). On the client we use
+ * same-origin so nginx can proxy; on the server we hit the internal URL.
+ */
+export async function getClaudeCodeMetric(
+  range?: { start_ms: number; end_ms: number }
+): Promise<PublicClaudeCodeResponse> {
+  const base = typeof window === "undefined" ? internalBase() : "";
+  const q = range
+    ? `?start_ms=${range.start_ms}&end_ms=${range.end_ms}`
+    : "";
   return apiFetch<PublicClaudeCodeResponse>(
-    `${internalBase()}/api/public/claude-code`,
+    `${base}/api/public/claude-code${q}`,
     { next: { revalidate: 30 } }
   );
 }

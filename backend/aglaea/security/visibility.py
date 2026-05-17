@@ -103,15 +103,16 @@ PUBLIC_FIELDS_HEARTBEAT: Final[frozenset[str]] = frozenset(
 # Fields of ClaudeCodeMetrics exposed publicly via /api/public/claude-code.
 PUBLIC_FIELDS_CLAUDE_CODE_METRICS: Final[frozenset[str]] = frozenset(
     {
-        "token_total_30d",
-        "cost_trend_30d",
+        "range_start_ms",
+        "range_end_ms",
+        "timeline",
+        "token_total",
+        "cost_trend",
         "token_by_model",
-        "cache_hit_rate_7d",
-        "active_time_ratio_7d",
-        "sessions_daily_30d",
-        "commits_daily_30d",
-        "loc_daily_30d",
-        "active_hours_heatmap",
+        "cache_hit_rate",
+        "sessions_daily",
+        "commits_daily",
+        "loc_daily",
         "terminal_type_share",
     }
 )

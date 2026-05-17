@@ -167,29 +167,26 @@ class TerminalShare(BaseModel):
     value: float
 
 
-class ActiveTimeRatio(BaseModel):
-    """CLI uptime seconds vs user-active seconds over 7d."""
-
-    cli: float
-    user: float
-
-
 class ClaudeCodeMetrics(BaseModel):
     """Aggregated Claude Code usage metrics for the public panel.
 
     Field set is pinned to PUBLIC_FIELDS_CLAUDE_CODE_METRICS via
     `_verify_allowlist_coupling()` at module import time.
+
+    `timeline` is always all-time (covers the brush-selector bar chart in the
+    UI); every other array/scalar is scoped to [range_start_ms, range_end_ms].
     """
 
-    token_total_30d: list[TokenDataPoint]
-    cost_trend_30d: list[CostDataPoint]
+    range_start_ms: int
+    range_end_ms: int
+    timeline: list[TokenDataPoint]
+    token_total: list[TokenDataPoint]
+    cost_trend: list[CostDataPoint]
     token_by_model: list[ModelTokens]
-    cache_hit_rate_7d: float
-    active_time_ratio_7d: ActiveTimeRatio
-    sessions_daily_30d: list[SessionDataPoint]
-    commits_daily_30d: list[CommitDataPoint]
-    loc_daily_30d: list[LocDataPoint]
-    active_hours_heatmap: list[list[float]]
+    cache_hit_rate: float
+    sessions_daily: list[SessionDataPoint]
+    commits_daily: list[CommitDataPoint]
+    loc_daily: list[LocDataPoint]
     terminal_type_share: list[TerminalShare]
 
 
@@ -241,7 +238,6 @@ _VISIBILITY_CONTRACTS: tuple[tuple[type[BaseModel], frozenset[str], str], ...] =
 
 
 __all__ = [
-    "ActiveTimeRatio",
     "ClaudeCodeMetrics",
     "CommitDataPoint",
     "CostDataPoint",

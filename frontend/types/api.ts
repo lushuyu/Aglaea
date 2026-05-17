@@ -291,15 +291,17 @@ export interface HostMetrics {
 }
 
 export interface ClaudeCodeMetrics {
-  token_total_30d: TokenDataPoint[];
-  cost_trend_30d: CostDataPoint[];
+  range_start_ms: number;
+  range_end_ms: number;
+  /** All-time daily token totals — drives the brush range selector. */
+  timeline: TokenDataPoint[];
+  token_total: TokenDataPoint[];
+  cost_trend: CostDataPoint[];
   token_by_model: ModelTokens[];
-  cache_hit_rate_7d: number;
-  active_time_ratio_7d: { cli: number; user: number };
-  sessions_daily_30d: SessionDataPoint[];
-  commits_daily_30d: CommitDataPoint[];
-  loc_daily_30d: LocDataPoint[];
-  active_hours_heatmap: number[][];
+  cache_hit_rate: number;
+  sessions_daily: SessionDataPoint[];
+  commits_daily: CommitDataPoint[];
+  loc_daily: LocDataPoint[];
   terminal_type_share: TerminalShare[];
   /** Admin-only: per-host breakdown */
   by_host?: Record<string, HostMetrics>;

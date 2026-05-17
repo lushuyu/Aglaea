@@ -22,7 +22,6 @@ from aglaea.models.incidents import Incident, IncidentLifecycleState
 from aglaea.models.services import Service
 from aglaea.promql import ALLOWED_PUBLIC_METRICS, PUBLIC_QUERIES
 from aglaea.schemas.public import (
-    ActiveTimeRatio,
     ClaudeCodeMetrics,
     CommitDataPoint,
     CostDataPoint,
@@ -451,232 +450,227 @@ def _range_flatten_daily(result: list[dict[str, Any]]) -> dict[str, float]:
     return out
 
 
-@router.get("/claude-code", response_model=PublicClaudeCodeResponse)
-async def public_claude_code() -> PublicClaudeCodeResponse:
-    """Aggregated 30-day Claude Code metrics for the public homepage panel.
+# Timeline (the all-time bar chart that drives the UI brush) always queries
+# this many days back; data older than this is hidden from the panel.
+TIMELINE_LOOKBACK_DAYS = 120
 
-    Fans out ~13 VM queries in parallel (range + instant), shapes the responses
-    into the panel's expected structure. Empty arrays / zero scalars on no-data
-    so the panel renders gracefully even before any device emits.
+
+def _instant_value_by_label(result: list[dict[str, Any]], label: str) -> list[tuple[str, float]]:
+    """Extract (label_value, scalar) pairs from a `sum by (label) (...)` result."""
+    out: list[tuple[str, float]] = []
+    for s in result:
+        metric = s.get("metric") or {}
+        lbl = str(metric.get(label, "unknown"))
+        v = s.get("value")
+        val = 0.0
+        if isinstance(v, list) and len(v) >= 2:
+            try:
+                val = float(v[1])
+            except (TypeError, ValueError):
+                val = 0.0
+        out.append((lbl, val))
+    return out
+
+
+@router.get("/claude-code", response_model=PublicClaudeCodeResponse)
+async def public_claude_code(
+    start_ms: int | None = Query(default=None, ge=0),
+    end_ms: int | None = Query(default=None, ge=0),
+) -> PublicClaudeCodeResponse:
+    """Aggregated Claude Code metrics scoped to [start_ms, end_ms].
+
+    Without query params, returns last 30 days (back-compat). The `timeline`
+    field is always all-time (last 120d) and powers the brush range selector
+    in the UI; every other field is scoped to the requested range.
+
+    end_ms is rounded UP to the next whole hour so the most-recent counter
+    sample (which may sit inside the current hour) is captured by VM's
+    `increase()` lookback window.
     """
     settings = get_settings()
     vm_url = settings.vm_url.rstrip("/")
-    # Round UP to the next hour: rounding down would put end_ts before any data
-    # point that arrived inside the current hour, causing increase()'s 1d
-    # lookback window to miss it. Future-end is safe — VM has no data there.
+
     now = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-    now_ts = int(now.timestamp())
-    day_ago_30_ts = int((now - timedelta(days=30)).timestamp())
+    default_end_ts = int(now.timestamp())
+    default_start_ts = int((now - timedelta(days=30)).timestamp())
+
+    end_ts = (end_ms // 1000) if end_ms is not None else default_end_ts
+    start_ts = (start_ms // 1000) if start_ms is not None else default_start_ts
+    if end_ts <= start_ts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="end_ms must be greater than start_ms",
+        )
+
+    range_seconds = end_ts - start_ts
+    # Pick step so we get ~30-60 points across the range.
+    step = "1h" if range_seconds <= 2 * 86400 else "1d"
+    window = "1h" if step == "1h" else "1d"
+
+    # Timeline (all-time bar chart) — daily, lookback fixed.
+    tl_end_ts = default_end_ts
+    tl_start_ts = int((now - timedelta(days=TIMELINE_LOOKBACK_DAYS)).timestamp())
 
     async with httpx.AsyncClient(timeout=HTTPX_DEFAULT_TIMEOUT_SECONDS) as client:
         (
+            timeline_result,
             token_total_result,
             cost_trend_result,
             sessions_daily_result,
             commits_daily_result,
             loc_added_result,
             loc_removed_result,
-            heatmap_result,
             token_by_model_result,
             cache_read_result,
             cache_create_result,
-            active_cli_result,
-            active_user_result,
             terminal_share_result,
         ) = await asyncio.gather(
             _vm_range(
                 client,
                 vm_url,
                 "sum(increase(claude_code_token_usage_tokens_total[1d]))",
-                day_ago_30_ts,
-                now_ts,
+                tl_start_ts,
+                tl_end_ts,
                 "1d",
             ),
             _vm_range(
                 client,
                 vm_url,
-                "sum(increase(claude_code_cost_usage_USD_total[1d]))",
-                day_ago_30_ts,
-                now_ts,
-                "1d",
+                f"sum(increase(claude_code_token_usage_tokens_total[{window}]))",
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_range(
                 client,
                 vm_url,
-                "sum(increase(claude_code_session_count_total[1d]))",
-                day_ago_30_ts,
-                now_ts,
-                "1d",
+                f"sum(increase(claude_code_cost_usage_USD_total[{window}]))",
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_range(
                 client,
                 vm_url,
-                "sum(increase(claude_code_commit_count_total[1d]))",
-                day_ago_30_ts,
-                now_ts,
-                "1d",
+                f"sum(increase(claude_code_session_count_total[{window}]))",
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_range(
                 client,
                 vm_url,
-                'sum(increase(claude_code_lines_of_code_count_total{type="added"}[1d]))',
-                day_ago_30_ts,
-                now_ts,
-                "1d",
+                f"sum(increase(claude_code_commit_count_total[{window}]))",
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_range(
                 client,
                 vm_url,
-                'sum(increase(claude_code_lines_of_code_count_total{type="removed"}[1d]))',
-                day_ago_30_ts,
-                now_ts,
-                "1d",
+                f'sum(increase(claude_code_lines_of_code_count_total{{type="added"}}[{window}]))',
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_range(
                 client,
                 vm_url,
-                'sum(increase(claude_code_active_time_seconds_total{type="user"}[1h]))',
-                day_ago_30_ts,
-                now_ts,
-                "1h",
+                f'sum(increase(claude_code_lines_of_code_count_total{{type="removed"}}[{window}]))',
+                start_ts,
+                end_ts,
+                step,
             ),
             _vm_instant(
                 client,
                 vm_url,
-                "sum by (model) (increase(claude_code_token_usage_tokens_total[30d]))",
+                "sum by (model) (increase("
+                f"claude_code_token_usage_tokens_total[{range_seconds}s]))",
             ),
             _vm_instant(
                 client,
                 vm_url,
-                'sum(increase(claude_code_token_usage_tokens_total{type="cacheRead"}[7d]))',
+                f'sum(increase(claude_code_token_usage_tokens_total{{type="cacheRead"}}[{range_seconds}s]))',
             ),
             _vm_instant(
                 client,
                 vm_url,
-                'sum(increase(claude_code_token_usage_tokens_total{type="cacheCreation"}[7d]))',
+                f'sum(increase(claude_code_token_usage_tokens_total{{type="cacheCreation"}}[{range_seconds}s]))',
             ),
             _vm_instant(
                 client,
                 vm_url,
-                'sum(increase(claude_code_active_time_seconds_total{type="cli"}[7d]))',
-            ),
-            _vm_instant(
-                client,
-                vm_url,
-                'sum(increase(claude_code_active_time_seconds_total{type="user"}[7d]))',
-            ),
-            _vm_instant(
-                client,
-                vm_url,
-                "sum by (terminal_type) (increase(claude_code_session_count_total[30d]))",
+                "sum by (terminal_type) (increase("
+                f"claude_code_session_count_total[{range_seconds}s]))",
             ),
         )
 
-    # Token total time series (30 daily points)
-    token_pts = _range_flatten_ts(token_total_result)
-    token_total_30d = [
-        TokenDataPoint(ts=datetime.fromtimestamp(t, UTC).isoformat(), value=v)
-        for t, v in sorted(token_pts.items())
-    ]
+    def _ts_series(result: list[dict[str, Any]]) -> list[TokenDataPoint]:
+        pts = _range_flatten_ts(result)
+        return [
+            TokenDataPoint(ts=datetime.fromtimestamp(t, UTC).isoformat(), value=v)
+            for t, v in sorted(pts.items())
+        ]
 
-    # Cost trend time series (30 daily points, USD)
-    cost_pts = _range_flatten_ts(cost_trend_result)
-    cost_trend_30d = [
-        CostDataPoint(ts=datetime.fromtimestamp(t, UTC).isoformat(), usd=v)
-        for t, v in sorted(cost_pts.items())
-    ]
+    def _cost_series(result: list[dict[str, Any]]) -> list[CostDataPoint]:
+        pts = _range_flatten_ts(result)
+        return [
+            CostDataPoint(ts=datetime.fromtimestamp(t, UTC).isoformat(), usd=v)
+            for t, v in sorted(pts.items())
+        ]
 
-    # Sessions daily
-    sessions_map = _range_flatten_daily(sessions_daily_result)
-    sessions_daily_30d = [
+    def _daily_count(result: list[dict[str, Any]]) -> dict[str, float]:
+        return _range_flatten_daily(result)
+
+    timeline = _ts_series(timeline_result)
+    token_total = _ts_series(token_total_result)
+    cost_trend = _cost_series(cost_trend_result)
+
+    sessions_map = _daily_count(sessions_daily_result)
+    sessions_daily = [
         SessionDataPoint(date=d, count=int(round(v))) for d, v in sorted(sessions_map.items())
     ]
-
-    # Commits daily
-    commits_map = _range_flatten_daily(commits_daily_result)
-    commits_daily_30d = [
+    commits_map = _daily_count(commits_daily_result)
+    commits_daily = [
         CommitDataPoint(date=d, count=int(round(v))) for d, v in sorted(commits_map.items())
     ]
-
-    # LOC daily — merge added + removed by date
-    added_map = _range_flatten_daily(loc_added_result)
-    removed_map = _range_flatten_daily(loc_removed_result)
-    all_loc_dates = sorted(set(added_map) | set(removed_map))
-    loc_daily_30d = [
+    added_map = _daily_count(loc_added_result)
+    removed_map = _daily_count(loc_removed_result)
+    loc_daily = [
         LocDataPoint(
             date=d,
             added=int(round(added_map.get(d, 0.0))),
             removed=int(round(removed_map.get(d, 0.0))),
         )
-        for d in all_loc_dates
+        for d in sorted(set(added_map) | set(removed_map))
     ]
 
-    # Token by model (instant total over 30d, grouped by `model` label)
-    token_by_model: list[ModelTokens] = []
-    for s in token_by_model_result:
-        metric = s.get("metric") or {}
-        model_name = str(metric.get("model", "unknown"))
-        v = s.get("value")
-        val = 0.0
-        if isinstance(v, list) and len(v) >= 2:
-            try:
-                val = float(v[1])
-            except (TypeError, ValueError):
-                val = 0.0
-        token_by_model.append(ModelTokens(model=model_name, value=val))
+    token_by_model = [
+        ModelTokens(model=name, value=v)
+        for name, v in _instant_value_by_label(token_by_model_result, "model")
+    ]
+    terminal_type_share = [
+        TerminalShare(type=t, value=v)
+        for t, v in _instant_value_by_label(terminal_share_result, "terminal_type")
+    ]
 
-    # Cache hit rate (7d): cacheRead / (cacheRead + cacheCreation)
     cache_read_val = _instant_scalar(cache_read_result)
     cache_create_val = _instant_scalar(cache_create_result)
     denom = cache_read_val + cache_create_val
-    cache_hit_rate_7d = cache_read_val / denom if denom > 0 else 0.0
-
-    # Active time ratio (7d): raw seconds for cli vs user; panel computes ratio
-    active_time_ratio_7d = ActiveTimeRatio(
-        cli=_instant_scalar(active_cli_result),
-        user=_instant_scalar(active_user_result),
-    )
-
-    # Active hours heatmap (7 days-of-week × 24 hours-of-day, last 30d)
-    heatmap_grid: list[list[float]] = [[0.0] * 24 for _ in range(7)]
-    for s in heatmap_result:
-        values = s.get("values", []) or []
-        for tv in values:
-            if not isinstance(tv, list) or len(tv) < 2:
-                continue
-            try:
-                ts = float(tv[0])
-                val = float(tv[1])
-            except (TypeError, ValueError):
-                continue
-            dt = datetime.fromtimestamp(ts, UTC)
-            heatmap_grid[dt.weekday()][dt.hour] += val
-
-    # Terminal type share (30d session count by terminal_type label)
-    terminal_type_share: list[TerminalShare] = []
-    for s in terminal_share_result:
-        metric = s.get("metric") or {}
-        ttype = str(metric.get("terminal_type", "unknown"))
-        v = s.get("value")
-        val = 0.0
-        if isinstance(v, list) and len(v) >= 2:
-            try:
-                val = float(v[1])
-            except (TypeError, ValueError):
-                val = 0.0
-        terminal_type_share.append(TerminalShare(type=ttype, value=val))
+    cache_hit_rate = cache_read_val / denom if denom > 0 else 0.0
 
     return PublicClaudeCodeResponse(
         metrics=ClaudeCodeMetrics(
-            token_total_30d=token_total_30d,
-            cost_trend_30d=cost_trend_30d,
+            range_start_ms=start_ts * 1000,
+            range_end_ms=end_ts * 1000,
+            timeline=timeline,
+            token_total=token_total,
+            cost_trend=cost_trend,
             token_by_model=token_by_model,
-            cache_hit_rate_7d=cache_hit_rate_7d,
-            active_time_ratio_7d=active_time_ratio_7d,
-            sessions_daily_30d=sessions_daily_30d,
-            commits_daily_30d=commits_daily_30d,
-            loc_daily_30d=loc_daily_30d,
-            active_hours_heatmap=heatmap_grid,
+            cache_hit_rate=cache_hit_rate,
+            sessions_daily=sessions_daily,
+            commits_daily=commits_daily,
+            loc_daily=loc_daily,
             terminal_type_share=terminal_type_share,
         )
     )
